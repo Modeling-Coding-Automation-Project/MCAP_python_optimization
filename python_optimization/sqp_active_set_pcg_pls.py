@@ -1,3 +1,11 @@
+"""
+File: sqp_active_set_pcg_pls.py
+
+SQP: Sequential Quadratic Programming
+PCG: Preconditioned Conjugate Gradient
+PLS: Projected Line Search
+
+"""
 import numpy as np
 
 
@@ -67,7 +75,7 @@ def solve_sqp(
         callback=None
 ):
     """
-    汎用SQPソルバー（アクティブセット+PCG+投影ラインサーチ）。
+    汎用SQPソルバー（アクティブセット+前処理付き共役勾配法+投影ラインサーチ）。
     - U_init: 初期入力系列 (N, nu)
     - cost_and_grad_fn(U): (J, grad) を返す関数
     - hvp_fn(U, V): HVP (H*V) を返す関数

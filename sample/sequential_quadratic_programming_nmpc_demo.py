@@ -3,7 +3,7 @@ import sys
 sys.path.append(os.getcwd())
 
 import numpy as np
-from python_optimization.sequential_quadratic_programming import solve_sqp
+from python_optimization.sqp_active_set_pcg_pls import solve_sqp
 
 # --- NMPC問題の定義（2質点ばねダンパ系） ---
 
