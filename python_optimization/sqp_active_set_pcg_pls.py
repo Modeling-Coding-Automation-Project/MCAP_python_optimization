@@ -103,7 +103,8 @@ class SQP_ActiveSet_PCG_PLS:
             x0=self.x0,
             lambda_factor=self.lambda_factor)
 
-    def pcg(self,
+    def preconditioned_conjugate_gradient(
+            self,
             hvp_function,
             rhs: np.ndarray,
             tol: float = PCG_TOL_DEFAULT,
@@ -209,9 +210,19 @@ class SQP_ActiveSet_PCG_PLS:
             self.hvp_function = hvp_function
             self.lambda_factor = lambda_factor
 
-            d_free = self.pcg(self.hvp_free_for_pcg, rhs_free,
-                              tol=cg_tol, max_it=cg_iteration, M_inv=M_inv_free)
+            d_free = self.preconditioned_conjugate_gradient(
+                hvp_function=self.hvp_free_for_pcg,
+                rhs=rhs_free,
+                tol=cg_tol,
+                max_it=cg_iteration,
+                M_inv=M_inv_free)
+
+            # Back-substitution of the solution (fixed components remain 0)
             d = vec_unmask(d_free.reshape(-1), mask, U.shape)
+
+            # line search and projection
+            # (No distinction between fixed/free is needed here,
+            #  project the whole)
             alpha = 1.0
             U_new = U.copy()
 
