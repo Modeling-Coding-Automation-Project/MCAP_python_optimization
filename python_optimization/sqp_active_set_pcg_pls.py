@@ -11,10 +11,10 @@ import numpy as np
 
 RHS_NORM_ZERO_LIMIT_DEFAULT = 1e-12
 
-GRAD_NORM_ZERO_LIMIT_DEFAULT = 1e-6
+GRADIENT_NORM_ZERO_LIMIT_DEFAULT = 1e-6
 
 FREE_MASK_U_NEAR_LIMIT_DEFAULT = 1e-12
-FREE_MASK_GRAD_ZERO_LIMIT_DEFAULT = 1e-12
+FREE_MASK_GRADIENT_ZERO_LIMIT_DEFAULT = 1e-12
 
 PCG_TOL_DEFAULT = 1e-4
 PCG_MAX_ITERATION_DEFAULT = 30
@@ -74,7 +74,7 @@ def hvp_free(
 class SQP_ActiveSet_PCG_PLS:
     def __init__(
             self,
-            gradient_norm_zero_limit=GRAD_NORM_ZERO_LIMIT_DEFAULT,
+            gradient_norm_zero_limit=GRADIENT_NORM_ZERO_LIMIT_DEFAULT,
             alpha_small_limit=ALPHA_SMALL_LIMIT_DEFAULT,
             alpha_decay_rate=ALPHA_DECAY_RATE_DEFAULT,
             pcg_php_minus_limit=PCG_PHP_MINUS_LIMIT_DEFAULT,
@@ -144,7 +144,7 @@ class SQP_ActiveSet_PCG_PLS:
                   umin: np.ndarray,
                   umax: np.ndarray,
                   atol: float = FREE_MASK_U_NEAR_LIMIT_DEFAULT,
-                  gtol: float = FREE_MASK_GRAD_ZERO_LIMIT_DEFAULT):
+                  gtol: float = FREE_MASK_GRADIENT_ZERO_LIMIT_DEFAULT):
         """
         True = Free, False = Fixed.
         At lower bound g>0 (going outside) -> Fixed.
