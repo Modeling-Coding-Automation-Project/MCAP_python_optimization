@@ -4,6 +4,7 @@ File: sqp_active_set_pcg_pls.py
 SQP: Sequential Quadratic Programming
 PCG: Preconditioned Conjugate Gradient
 PLS: Projected Line Search
+HVP: Hessian-Vector Product
 
 """
 import numpy as np
@@ -50,11 +51,13 @@ class SQP_ActiveSet_PCG_PLS:
             grad_norm_zero_limit=GRAD_NORM_ZERO_LIMIT_DEFAULT,
             alpha_small_limit=ALPHA_SMALL_LIMIT_DEFAULT,
             alpha_decay_rate=ALPHA_DECAY_RATE_DEFAULT,
+            pcg_php_minus_limit=PCG_PHP_MINUS_LIMIT_DEFAULT,
     ):
 
         self.grad_norm_zero_limit = grad_norm_zero_limit
         self.alpha_small_limit = alpha_small_limit
         self.alpha_decay_rate = alpha_decay_rate
+        self.pcg_php_minus_limit = pcg_php_minus_limit
 
         self.mask = None
         self.U = None
@@ -94,7 +97,7 @@ class SQP_ActiveSet_PCG_PLS:
         for _ in range(max_it):
             Hp = hvp(p)
             denom = np.vdot(p, Hp)
-            if denom <= PCG_PHP_MINUS_LIMIT_DEFAULT:
+            if denom <= self.pcg_php_minus_limit:
                 break
             alpha = rz / denom
             d += alpha * p
