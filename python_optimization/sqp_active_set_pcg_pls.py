@@ -45,9 +45,11 @@ def hvp_free(p_free_flat, mask, U, hvp_fn, lambda_factor):
 class SQP_ActiveSet_PCG_PLS:
     def __init__(
             self,
-            grad_norm_zero_limit=GRAD_NORM_ZERO_LIMIT_DEFAULT):
+            grad_norm_zero_limit=GRAD_NORM_ZERO_LIMIT_DEFAULT,
+            alpha_small_limit=ALPHA_SMALL_LIMIT_DEFAULT):
 
         self.grad_norm_zero_limit = grad_norm_zero_limit
+        self.alpha_small_limit = alpha_small_limit
 
         self.mask = None
         self.U = None
@@ -172,7 +174,7 @@ class SQP_ActiveSet_PCG_PLS:
                 U_cand = U + alpha * d
                 U_cand = np.minimum(np.maximum(U_cand, u_min), u_max)
                 J_cand, _ = cost_and_grad_fn(U_cand)
-                if J_cand <= J or alpha < ALPHA_SMALL_LIMIT_DEFAULT:
+                if J_cand <= J or alpha < self.alpha_small_limit:
                     U_new = U_cand
                     J = J_cand
                     break
