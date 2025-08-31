@@ -9,7 +9,7 @@ from python_optimization.sqp_active_set_pcg_pls import SQP_ActiveSet_PCG_PLS
 
 nx = 4   # State dimension
 nu = 2   # Input dimension
-N = 10   # Horizon
+N = 10   # Prediction Horizon
 
 dt = 0.1
 c = 0.01

@@ -11,6 +11,9 @@ import numpy as np
 RHS_NORM_ZERO_LIMIT_DEFAULT = 1e-12
 GRAD_NORM_ZERO_LIMIT_DEFAULT = 1e-6
 
+FREE_MASK_U_NEAR_LIMIT_DEFAULT = 1e-12
+FREE_MASK_GRAD_ZERO_LIMIT_DEFAULT = 1e-12
+
 PCG_TOL_DEFAULT = 1e-4
 PCG_MAX_ITERATION_DEFAULT = 30
 
@@ -96,8 +99,8 @@ class SQP_ActiveSet_PCG_PLS:
                   grad: np.ndarray,
                   umin: np.ndarray,
                   umax: np.ndarray,
-                  atol: float = 1e-12,
-                  gtol: float = 1e-12):
+                  atol: float = FREE_MASK_U_NEAR_LIMIT_DEFAULT,
+                  gtol: float = FREE_MASK_GRAD_ZERO_LIMIT_DEFAULT):
         """
         True = Free, False = Fixed.
         At lower bound g>0 (going outside) -> Fixed.
