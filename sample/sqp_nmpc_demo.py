@@ -62,7 +62,38 @@ def dynamics_jacobians(x, u):
     B = np.zeros((nx, nu))
     B[1, 0] = dt * (1.0 / m1)
     B[3, 1] = dt * (1.0 / m2)
+
     return A, B
+
+# Default callbacks for second-order contraction (implement only what's necessary)
+
+
+def fx_xx_T_contract(x, u, lam_next, dx):  # -> (nx,)
+    # sum_i lam_i * ( ddf_i/dx @ dx )
+    return np.zeros(nx)
+
+
+def fx_xu_T_contract(x, u, lam_next, du):  # -> (nx,)
+    # sum_i lam_i * ( ddf_i/dxdu @ du )
+    return np.zeros(nx)
+
+
+def fu_xx_T_contract(x, u, lam_next, dx):  # -> (nu,)
+    # sum_i lam_i * ( ddf_i/dudx @ dx )
+    return np.zeros(nu)
+
+
+def fu_uu_T_contract(x, u, lam_next, du):  # -> (nu,)
+    # sum_i lam_i * ( ddf_i/ddu @ du )
+    return np.zeros(nu)
+
+# Default cost Hessian and cross-term functions for use in hvp_analytic
+
+
+def l_xx(x, u): return 2 * Q
+def l_uu(x, u): return 2 * R
+def l_xu(x, u): return np.zeros((nx, nu))
+def l_ux(x, u): return np.zeros((nu, nx))
 
 
 def simulate_trajectory(x0, U):
@@ -88,24 +119,59 @@ def compute_cost_and_gradient(U):
     return J, grad
 
 
-def hvp_analytic(U, V):
+def hvp_analytic(x0, U, V):
+    """
+    解析HVP: 任意の方向 V (N x nu) に対し H*V を返す（H = ∇^2 J）。
+    手順:
+      1) 前進: X を生成
+      2) 1階随伴: λ を生成
+      3) 前進感度: δx を V で前進
+      4) 後退2階随伴: δλ, δQ_u を後退で生成 → これが H*V
+    """
+    # --- 1) forward states
     X = simulate_trajectory(x0, U)
+
+    # --- 2) first-order adjoint (costate λ)
     lam = np.zeros((N + 1, nx))
     lam[N] = 2 * P @ X[N]
     for k in range(N - 1, -1, -1):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
         lam[k] = 2 * Q @ X[k] + A_k.T @ lam[k + 1]
+
+    # --- 3) forward directional state: δx ---
     dx = np.zeros((N + 1, nx))
     for k in range(N):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
         dx[k + 1] = A_k @ dx[k] + B_k @ V[k]
+
+    # --- 4) backward second-order adjoint（一般形） ---
     dlam = np.zeros((N + 1, nx))
-    dlam[N] = 2 * P @ dx[N]
+    # 端末項 φ_xx = l_xx(X_N,·) の扱いに合わせる（今は2P）
+    dlam[N] = l_xx(X[N], None) @ dx[N]
+
     Hu = np.zeros_like(U)
     for k in range(N - 1, -1, -1):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
-        dlam[k] = 2 * Q @ dx[k] + A_k.T @ dlam[k + 1]
-        Hu[k] = 2 * R @ V[k] + B_k.T @ dlam[k + 1]
+
+        # dλ_k
+        term_xx = fx_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])   # 新規
+        term_xu = fx_xu_T_contract(X[k], U[k], lam[k + 1], V[k])    # 新規
+        dlam[k] = (
+            l_xx(X[k], U[k]) @ dx[k] +
+            l_xu(X[k], U[k]) @ V[k] +
+            A_k.T @ dlam[k + 1] +
+            term_xx + term_xu
+        )
+
+        # (HV)_k
+        term_ux = fu_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])   # 新規
+        term_uu = fu_uu_T_contract(X[k], U[k], lam[k + 1], V[k])    # 新規
+        Hu[k] = (
+            l_uu(X[k], U[k]) @ V[k] +
+            l_ux(X[k], U[k]) @ dx[k] +
+            B_k.T @ dlam[k + 1] +
+            term_ux + term_uu
+        )
     return Hu
 
 
@@ -121,6 +187,7 @@ U_opt, J_opt = solver.solve(
     U_initial,
     compute_cost_and_gradient,
     hvp_analytic,
+    x0,
     u_min_mat,
     u_max_mat,
     max_iter=20

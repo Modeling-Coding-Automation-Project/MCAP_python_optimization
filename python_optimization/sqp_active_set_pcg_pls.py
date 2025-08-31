@@ -28,19 +28,33 @@ SOLVER_MAX_ITERATION_DEFAULT = 100
 LAMBDA_FACTOR_DEFAULT = 1e-6
 
 
-def vec_mask(A, mask):
+def vec_mask(
+        A: np.ndarray,
+        mask: np.ndarray):
+
     return A[mask]
 
 
-def vec_unmask(v, mask, U_shape):
+def vec_unmask(
+        v: np.ndarray,
+        mask: np.ndarray,
+        U_shape: tuple):
+
     out = np.zeros(U_shape)
     out[mask] = v
     return out
 
 
-def hvp_free(p_free_flat, mask, U, hvp_fn, lambda_factor):
+def hvp_free(
+        p_free_flat: np.ndarray,
+        mask: np.ndarray,
+        U: np.ndarray,
+        hvp_fn,
+        x0: np.ndarray,
+        lambda_factor: float):
+
     P = vec_unmask(p_free_flat, mask, U.shape).reshape(U.shape)
-    Hv_full = hvp_fn(U, P)
+    Hv_full = hvp_fn(x0, U, P)
     Hv_full += lambda_factor * P
     return vec_mask(Hv_full, mask).reshape(-1)
 
@@ -62,10 +76,17 @@ class SQP_ActiveSet_PCG_PLS:
         self.mask = None
         self.U = None
         self.hvp_fn = None
+        self.x0 = None
         self.lambda_factor = None
 
     def hvp_free_for_pcg(self, v):
-        return hvp_free(v, self.mask, self.U, self.hvp_fn, self.lambda_factor)
+        return hvp_free(
+            p_free_flat=v,
+            mask=self.mask,
+            U=self.U,
+            hvp_fn=self.hvp_fn,
+            x0=self.x0,
+            lambda_factor=self.lambda_factor)
 
     def pcg(self,
             hvp,
@@ -136,6 +157,7 @@ class SQP_ActiveSet_PCG_PLS:
         U_init: np.ndarray,
         cost_and_grad_fn,
         hvp_fn,
+        x0: np.ndarray,
         u_min: np.ndarray,
         u_max: np.ndarray,
         max_iter: int = SOLVER_MAX_ITERATION_DEFAULT,
@@ -148,11 +170,12 @@ class SQP_ActiveSet_PCG_PLS:
         (Active Set + Preconditioned Conjugate Gradient + Projected Line Search).
         - U_init: Initial input sequence (N, nu)
         - cost_and_grad_fn(U): Function that returns (J, grad)
-        - hvp_fn(U, V): Function that returns HVP (H*V)
+        - hvp_fn(x0, U, V): Function that returns HVP (H*V)
         - u_min, u_max: Input lower and upper bounds (N, nu)
         """
-
+        self.x0 = x0
         U = U_init.copy()
+
         for iteration in range(max_iter):
             J, grad = cost_and_grad_fn(U)
             g = grad.copy()
