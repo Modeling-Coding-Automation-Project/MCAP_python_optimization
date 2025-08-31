@@ -8,6 +8,17 @@ PLS: Projected Line Search
 """
 import numpy as np
 
+RHS_NORM_ZERO_LIMIT_DEFAULT = 1e-12
+GRAD_NORM_ZERO_LIMIT_DEFAULT = 1e-6
+
+PCG_TOL_DEFAULT = 1e-4
+PCG_MAX_ITERATION_DEFAULT = 30
+
+ALPHA_SMALL_LIMIT_DEFAULT = 1e-6
+ALPHA_DECAY_RATE_DEFAULT = 0.5
+
+SOLVER_MAX_ITERATION_DEFAULT = 100
+
 
 def vec_mask(A, mask):
     return A[mask]
@@ -39,8 +50,8 @@ class SQP_ActiveSet_PCG_PLS:
     def pcg(self,
             hvp,
             rhs: np.ndarray,
-            tol: float = 1e-6,
-            max_it: int = 50,
+            tol: float = PCG_TOL_DEFAULT,
+            max_it: int = PCG_MAX_ITERATION_DEFAULT,
             M_inv=None):
         """
         Solve the system hvp(d) = rhs using PCG without matrix.
@@ -49,7 +60,7 @@ class SQP_ActiveSet_PCG_PLS:
         """
         r = rhs.copy()
         d = np.zeros_like(rhs)
-        if np.linalg.norm(r) < 1e-16:
+        if np.linalg.norm(r) < RHS_NORM_ZERO_LIMIT_DEFAULT:
             return d
 
         def apply_Minv(x):
@@ -107,9 +118,9 @@ class SQP_ActiveSet_PCG_PLS:
         hvp_fn,
         u_min: np.ndarray,
         u_max: np.ndarray,
-        max_iter: int = 50,
-        cg_it: int = 30,
-        cg_tol: float = 1e-4,
+        max_iter: int = SOLVER_MAX_ITERATION_DEFAULT,
+        cg_it: int = PCG_MAX_ITERATION_DEFAULT,
+        cg_tol: float = PCG_TOL_DEFAULT,
         lambda_factor: float = 1e-6,
         callback=None
     ):
@@ -127,7 +138,7 @@ class SQP_ActiveSet_PCG_PLS:
         for iteration in range(max_iter):
             J, grad = cost_and_grad_fn(U)
             g = grad.copy()
-            if np.linalg.norm(g) < 1e-6:
+            if np.linalg.norm(g) < GRAD_NORM_ZERO_LIMIT_DEFAULT:
                 break
             mask = self.free_mask(U, g, u_min, u_max)
 
@@ -139,7 +150,6 @@ class SQP_ActiveSet_PCG_PLS:
             M_inv_full = 1.0 / (diagR_full + lambda_factor)
             M_inv_free = vec_mask(M_inv_full, mask).reshape(-1)
 
-            # Set as instance variables for use in hvp_free_for_pcg
             self.mask = mask
             self.U = U
             self.hvp_fn = hvp_fn
@@ -154,11 +164,11 @@ class SQP_ActiveSet_PCG_PLS:
                 U_cand = U + alpha * d
                 U_cand = np.minimum(np.maximum(U_cand, u_min), u_max)
                 J_cand, _ = cost_and_grad_fn(U_cand)
-                if J_cand <= J or alpha < 1e-6:
+                if J_cand <= J or alpha < ALPHA_SMALL_LIMIT_DEFAULT:
                     U_new = U_cand
                     J = J_cand
                     break
-                alpha *= 0.5
+                alpha *= ALPHA_DECAY_RATE_DEFAULT
             U = U_new
             if callback is not None:
                 callback(iteration, U, J, g)
