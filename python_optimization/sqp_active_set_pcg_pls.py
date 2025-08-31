@@ -11,9 +11,9 @@ import numpy as np
 
 def pcg(hvp, rhs, tol=1e-6, max_it=50, M_inv=None):
     """
-    (行列なし) PCG で hvp(d) = rhs を解く。rhs, d は任意形状OK。
-    hvp: 関数 v -> H v
-    M_inv: 前処理（None or ベクトル/関数）。
+    Solve the system hvp(d) = rhs using PCG without matrix.
+    hvp: function v -> H v
+    M_inv: pre-conditioner (None or vector/function).
     """
     r = rhs.copy()
     d = np.zeros_like(rhs)
@@ -51,9 +51,11 @@ def pcg(hvp, rhs, tol=1e-6, max_it=50, M_inv=None):
 
 def free_mask(U, grad, umin, umax, atol=1e-12, gtol=1e-12):
     """
-    True = 自由, False = 固定。
-    下限で g>0（外側へ行く）→固定。上限で g<0（外側へ行く）→固定。
+    True = Free, False = Fixed.
+    At lower bound g>0 (going outside) -> Fixed.
+    At upper bound g<0 (going outside) -> Fixed.
     """
+
     m = np.ones_like(U, dtype=bool)
     at_lo = np.isclose(U, umin, atol=atol)
     at_hi = np.isclose(U, umax, atol=atol)
@@ -75,13 +77,15 @@ def solve_sqp(
         callback=None
 ):
     """
-    汎用SQPソルバー（アクティブセット+前処理付き共役勾配法+投影ラインサーチ）。
-    - U_init: 初期入力系列 (N, nu)
-    - cost_and_grad_fn(U): (J, grad) を返す関数
-    - hvp_fn(U, V): HVP (H*V) を返す関数
-    - u_min, u_max: 入力下限・上限 (N, nu)
-    - callback: 各イテレーションで呼ばれる関数 (iteration, U, J, grad)
+    General SQP solver
+     (Active Set + Preconditioned Conjugate Gradient + Projected Line Search).
+    - U_init: Initial input sequence (N, nu)
+    - cost_and_grad_fn(U): Function that returns (J, grad)
+    - hvp_fn(U, V): Function that returns HVP (H*V)
+    - u_min, u_max: Input lower and upper bounds (N, nu)
+    - callback: Function called at each iteration (iteration, U, J, grad)
     """
+
     U = U_init.copy()
     for iteration in range(max_iter):
         J, grad = cost_and_grad_fn(U)
@@ -104,7 +108,10 @@ def solve_sqp(
             Hv_full += lam * P
             return vec_mask(Hv_full).reshape(-1)
         rhs_free = (-vec_mask(g)).reshape(-1)
-        diagR_full = np.ones_like(U)  # ユーザーが適切な前処理を与える場合は差し替え
+
+        # If the user provides appropriate preconditioning, replace it here.
+        diagR_full = np.ones_like(U)
+
         M_inv_full = 1.0 / (diagR_full + lam)
         M_inv_free = vec_mask(M_inv_full).reshape(-1)
         d_free = pcg(lambda v: hvp_free(v), rhs_free,

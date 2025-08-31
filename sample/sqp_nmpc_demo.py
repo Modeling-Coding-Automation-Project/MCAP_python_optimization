@@ -5,11 +5,11 @@ sys.path.append(os.getcwd())
 import numpy as np
 from python_optimization.sqp_active_set_pcg_pls import solve_sqp
 
-# --- NMPC問題の定義（2質点ばねダンパ系） ---
+# --- NMPC Problem Definition (2-Mass Spring-Damper System) ---
 
-nx = 4   # 状態次元
-nu = 2   # 入力次元
-N = 10   # ホライズン
+nx = 4   # State dimension
+nu = 2   # Input dimension
+N = 10   # Horizon
 
 dt = 0.1
 c = 0.01
@@ -109,7 +109,7 @@ def hvp_analytic(U, V):
     return Hu
 
 
-# --- 実行例 ---
+# --- Example Execution ---
 x0 = np.array([5.0, 0.0, 5.0, 0.0])
 U_initial = np.zeros((N, nu))
 u_min_mat = np.tile(u_min, (N, 1))
