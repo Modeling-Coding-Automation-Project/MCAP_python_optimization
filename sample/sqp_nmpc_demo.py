@@ -3,7 +3,7 @@ import sys
 sys.path.append(os.getcwd())
 
 import numpy as np
-from python_optimization.sqp_active_set_pcg_pls import solve_sqp
+from python_optimization.sqp_active_set_pcg_pls import SQP_ActiveSet_PCG_PLS
 
 # --- NMPC Problem Definition (2-Mass Spring-Damper System) ---
 
@@ -114,7 +114,10 @@ x0 = np.array([5.0, 0.0, 5.0, 0.0])
 U_initial = np.zeros((N, nu))
 u_min_mat = np.tile(u_min, (N, 1))
 u_max_mat = np.tile(u_max, (N, 1))
-U_opt, J_opt = solve_sqp(
+
+solver = SQP_ActiveSet_PCG_PLS()
+
+U_opt, J_opt = solver.solve(
     U_initial,
     compute_cost_and_gradient,
     hvp_analytic,
