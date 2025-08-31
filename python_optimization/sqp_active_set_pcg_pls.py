@@ -9,6 +9,7 @@ PLS: Projected Line Search
 import numpy as np
 
 RHS_NORM_ZERO_LIMIT_DEFAULT = 1e-12
+
 GRAD_NORM_ZERO_LIMIT_DEFAULT = 1e-6
 
 FREE_MASK_U_NEAR_LIMIT_DEFAULT = 1e-12
@@ -42,7 +43,12 @@ def hvp_free(p_free_flat, mask, U, hvp_fn, lambda_factor):
 
 
 class SQP_ActiveSet_PCG_PLS:
-    def __init__(self):
+    def __init__(
+            self,
+            grad_norm_zero_limit=GRAD_NORM_ZERO_LIMIT_DEFAULT):
+
+        self.grad_norm_zero_limit = grad_norm_zero_limit
+
         self.mask = None
         self.U = None
         self.hvp_fn = None
@@ -140,7 +146,7 @@ class SQP_ActiveSet_PCG_PLS:
         for iteration in range(max_iter):
             J, grad = cost_and_grad_fn(U)
             g = grad.copy()
-            if np.linalg.norm(g) < GRAD_NORM_ZERO_LIMIT_DEFAULT:
+            if np.linalg.norm(g) < self.grad_norm_zero_limit:
                 break
             mask = self.free_mask(U, g, u_min, u_max)
 
