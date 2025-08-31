@@ -28,7 +28,13 @@ def hvp_free(p_free_flat, mask, U, hvp_fn, lambda_factor):
 
 class SQP_ActiveSet_PCG_PLS:
     def __init__(self):
-        pass
+        self.mask = None
+        self.U = None
+        self.hvp_fn = None
+        self.lambda_factor = None
+
+    def hvp_free_for_pcg(self, v):
+        return hvp_free(v, self.mask, self.U, self.hvp_fn, self.lambda_factor)
 
     def pcg(self,
             hvp,
@@ -95,17 +101,17 @@ class SQP_ActiveSet_PCG_PLS:
         return m
 
     def solve(
-            self,
-            U_init: np.ndarray,
-            cost_and_grad_fn,
-            hvp_fn,
-            u_min: np.ndarray,
-            u_max: np.ndarray,
-            max_iter: int = 50,
-            cg_it: int = 30,
-            cg_tol: float = 1e-4,
-            lambda_factor: float = 1e-6,
-            callback=None
+        self,
+        U_init: np.ndarray,
+        cost_and_grad_fn,
+        hvp_fn,
+        u_min: np.ndarray,
+        u_max: np.ndarray,
+        max_iter: int = 50,
+        cg_it: int = 30,
+        cg_tol: float = 1e-4,
+        lambda_factor: float = 1e-6,
+        callback=None
     ):
         """
         General SQP solver
@@ -133,10 +139,13 @@ class SQP_ActiveSet_PCG_PLS:
             M_inv_full = 1.0 / (diagR_full + lambda_factor)
             M_inv_free = vec_mask(M_inv_full, mask).reshape(-1)
 
-            def hvp_free_wrapper(v):
-                return hvp_free(v, mask, U, hvp_fn, lambda_factor)
+            # Set as instance variables for use in hvp_free_for_pcg
+            self.mask = mask
+            self.U = U
+            self.hvp_fn = hvp_fn
+            self.lambda_factor = lambda_factor
 
-            d_free = self.pcg(hvp_free_wrapper, rhs_free,
+            d_free = self.pcg(self.hvp_free_for_pcg, rhs_free,
                               tol=cg_tol, max_it=cg_it, M_inv=M_inv_free)
             d = vec_unmask(d_free.reshape(-1), mask, U.shape)
             alpha = 1.0
