@@ -49,12 +49,12 @@ def hvp_free(
         p_free_flat: np.ndarray,
         mask: np.ndarray,
         U: np.ndarray,
-        hvp_fn,
+        hvp_function,
         x0: np.ndarray,
         lambda_factor: float):
 
     P = vec_unmask(p_free_flat, mask, U.shape).reshape(U.shape)
-    Hv_full = hvp_fn(x0, U, P)
+    Hv_full = hvp_function(x0, U, P)
     Hv_full += lambda_factor * P
     return vec_mask(Hv_full, mask).reshape(-1)
 
@@ -75,7 +75,7 @@ class SQP_ActiveSet_PCG_PLS:
 
         self.mask = None
         self.U = None
-        self.hvp_fn = None
+        self.hvp_function = None
         self.x0 = None
         self.lambda_factor = None
 
@@ -84,19 +84,19 @@ class SQP_ActiveSet_PCG_PLS:
             p_free_flat=v,
             mask=self.mask,
             U=self.U,
-            hvp_fn=self.hvp_fn,
+            hvp_function=self.hvp_function,
             x0=self.x0,
             lambda_factor=self.lambda_factor)
 
     def pcg(self,
-            hvp,
+            hvp_function,
             rhs: np.ndarray,
             tol: float = PCG_TOL_DEFAULT,
             max_it: int = PCG_MAX_ITERATION_DEFAULT,
             M_inv=None):
         """
-        Solve the system hvp(d) = rhs using PCG without matrix.
-        hvp: function v -> H v
+        Solve the system hvp_function(d) = rhs using PCG without matrix.
+        hvp_function: function v -> H v
         M_inv: pre-conditioner (None or vector/function).
         """
         r = rhs.copy()
@@ -116,7 +116,7 @@ class SQP_ActiveSet_PCG_PLS:
         rz = np.vdot(r, z)
         r0 = np.linalg.norm(r)
         for _ in range(max_it):
-            Hp = hvp(p)
+            Hp = hvp_function(p)
             denom = np.vdot(p, Hp)
             if denom <= self.pcg_php_minus_limit:
                 break
@@ -146,22 +146,22 @@ class SQP_ActiveSet_PCG_PLS:
         """
 
         m = np.ones_like(U, dtype=bool)
-        at_lo = np.isclose(U, umin, atol=atol)
-        at_hi = np.isclose(U, umax, atol=atol)
-        m[at_lo & (grad > gtol)] = False
-        m[at_hi & (grad < -gtol)] = False
+        at_lower = np.isclose(U, umin, atol=atol)
+        at_upper = np.isclose(U, umax, atol=atol)
+        m[at_lower & (grad > gtol)] = False
+        m[at_upper & (grad < -gtol)] = False
         return m
 
     def solve(
         self,
         U_init: np.ndarray,
-        cost_and_grad_fn,
-        hvp_fn,
+        cost_and_grad_function,
+        hvp_function,
         x0: np.ndarray,
         u_min: np.ndarray,
         u_max: np.ndarray,
-        max_iter: int = SOLVER_MAX_ITERATION_DEFAULT,
-        cg_it: int = PCG_MAX_ITERATION_DEFAULT,
+        max_iteration: int = SOLVER_MAX_ITERATION_DEFAULT,
+        cg_iteration: int = PCG_MAX_ITERATION_DEFAULT,
         cg_tol: float = PCG_TOL_DEFAULT,
         lambda_factor: float = LAMBDA_FACTOR_DEFAULT,
     ):
@@ -169,15 +169,15 @@ class SQP_ActiveSet_PCG_PLS:
         General SQP solver
         (Active Set + Preconditioned Conjugate Gradient + Projected Line Search).
         - U_init: Initial input sequence (N, nu)
-        - cost_and_grad_fn(U): Function that returns (J, grad)
-        - hvp_fn(x0, U, V): Function that returns HVP (H*V)
+        - cost_and_grad_function(U): Function that returns (J, grad)
+        - hvp_function(x0, U, V): Function that returns HVP (H*V)
         - u_min, u_max: Input lower and upper bounds (N, nu)
         """
         self.x0 = x0
         U = U_init.copy()
 
-        for iteration in range(max_iter):
-            J, grad = cost_and_grad_fn(U)
+        for iteration in range(max_iteration):
+            J, grad = cost_and_grad_function(U)
             g = grad.copy()
             if np.linalg.norm(g) < self.grad_norm_zero_limit:
                 break
@@ -186,28 +186,28 @@ class SQP_ActiveSet_PCG_PLS:
             rhs_free = (-vec_mask(g, mask)).reshape(-1)
 
             # If the user provides appropriate preconditioning, replace it here.
-            diagR_full = np.ones_like(U)
+            diag_R_full = np.ones_like(U)
 
-            M_inv_full = 1.0 / (diagR_full + lambda_factor)
+            M_inv_full = 1.0 / (diag_R_full + lambda_factor)
             M_inv_free = vec_mask(M_inv_full, mask).reshape(-1)
 
             self.mask = mask
             self.U = U
-            self.hvp_fn = hvp_fn
+            self.hvp_function = hvp_function
             self.lambda_factor = lambda_factor
 
             d_free = self.pcg(self.hvp_free_for_pcg, rhs_free,
-                              tol=cg_tol, max_it=cg_it, M_inv=M_inv_free)
+                              tol=cg_tol, max_it=cg_iteration, M_inv=M_inv_free)
             d = vec_unmask(d_free.reshape(-1), mask, U.shape)
             alpha = 1.0
             U_new = U.copy()
             while True:
-                U_cand = U + alpha * d
-                U_cand = np.minimum(np.maximum(U_cand, u_min), u_max)
-                J_cand, _ = cost_and_grad_fn(U_cand)
-                if J_cand <= J or alpha < self.alpha_small_limit:
-                    U_new = U_cand
-                    J = J_cand
+                U_candidate = U + alpha * d
+                U_candidate = np.minimum(np.maximum(U_candidate, u_min), u_max)
+                J_candidate, _ = cost_and_grad_function(U_candidate)
+                if J_candidate <= J or alpha < self.alpha_small_limit:
+                    U_new = U_candidate
+                    J = J_candidate
                     break
                 alpha *= self.alpha_decay_rate
             U = U_new
