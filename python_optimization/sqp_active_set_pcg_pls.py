@@ -24,6 +24,8 @@ ALPHA_DECAY_RATE_DEFAULT = 0.5
 
 SOLVER_MAX_ITERATION_DEFAULT = 100
 
+LAMBDA_FACTOR_DEFAULT = 1e-6
+
 
 def vec_mask(A, mask):
     return A[mask]
@@ -46,10 +48,13 @@ class SQP_ActiveSet_PCG_PLS:
     def __init__(
             self,
             grad_norm_zero_limit=GRAD_NORM_ZERO_LIMIT_DEFAULT,
-            alpha_small_limit=ALPHA_SMALL_LIMIT_DEFAULT):
+            alpha_small_limit=ALPHA_SMALL_LIMIT_DEFAULT,
+            alpha_decay_rate=ALPHA_DECAY_RATE_DEFAULT,
+    ):
 
         self.grad_norm_zero_limit = grad_norm_zero_limit
         self.alpha_small_limit = alpha_small_limit
+        self.alpha_decay_rate = alpha_decay_rate
 
         self.mask = None
         self.U = None
@@ -133,7 +138,7 @@ class SQP_ActiveSet_PCG_PLS:
         max_iter: int = SOLVER_MAX_ITERATION_DEFAULT,
         cg_it: int = PCG_MAX_ITERATION_DEFAULT,
         cg_tol: float = PCG_TOL_DEFAULT,
-        lambda_factor: float = 1e-6,
+        lambda_factor: float = LAMBDA_FACTOR_DEFAULT,
     ):
         """
         General SQP solver
@@ -178,7 +183,7 @@ class SQP_ActiveSet_PCG_PLS:
                     U_new = U_cand
                     J = J_cand
                     break
-                alpha *= ALPHA_DECAY_RATE_DEFAULT
+                alpha *= self.alpha_decay_rate
             U = U_new
 
         return U, J
