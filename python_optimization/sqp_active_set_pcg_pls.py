@@ -16,6 +16,7 @@ FREE_MASK_GRAD_ZERO_LIMIT_DEFAULT = 1e-12
 
 PCG_TOL_DEFAULT = 1e-4
 PCG_MAX_ITERATION_DEFAULT = 30
+PCG_PHP_MINUS_LIMIT_DEFAULT = 1e-14
 
 ALPHA_SMALL_LIMIT_DEFAULT = 1e-6
 ALPHA_DECAY_RATE_DEFAULT = 0.5
@@ -80,7 +81,7 @@ class SQP_ActiveSet_PCG_PLS:
         for _ in range(max_it):
             Hp = hvp(p)
             denom = np.vdot(p, Hp)
-            if denom <= 1e-14:
+            if denom <= PCG_PHP_MINUS_LIMIT_DEFAULT:
                 break
             alpha = rz / denom
             d += alpha * p
@@ -125,7 +126,6 @@ class SQP_ActiveSet_PCG_PLS:
         cg_it: int = PCG_MAX_ITERATION_DEFAULT,
         cg_tol: float = PCG_TOL_DEFAULT,
         lambda_factor: float = 1e-6,
-        callback=None
     ):
         """
         General SQP solver
@@ -134,7 +134,6 @@ class SQP_ActiveSet_PCG_PLS:
         - cost_and_grad_fn(U): Function that returns (J, grad)
         - hvp_fn(U, V): Function that returns HVP (H*V)
         - u_min, u_max: Input lower and upper bounds (N, nu)
-        - callback: Function called at each iteration (iteration, U, J, grad)
         """
 
         U = U_init.copy()
@@ -173,6 +172,5 @@ class SQP_ActiveSet_PCG_PLS:
                     break
                 alpha *= ALPHA_DECAY_RATE_DEFAULT
             U = U_new
-            if callback is not None:
-                callback(iteration, U, J, g)
+
         return U, J
