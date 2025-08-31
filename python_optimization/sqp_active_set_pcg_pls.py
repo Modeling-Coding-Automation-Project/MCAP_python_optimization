@@ -13,7 +13,12 @@ class SQP_ActiveSet_PCG_PLS:
     def __init__(self):
         pass
 
-    def pcg(self, hvp, rhs, tol=1e-6, max_it=50, M_inv=None):
+    def pcg(self,
+            hvp,
+            rhs: np.ndarray,
+            tol: float = 1e-6,
+            max_it: int = 50,
+            M_inv=None):
         """
         Solve the system hvp(d) = rhs using PCG without matrix.
         hvp: function v -> H v
@@ -52,7 +57,13 @@ class SQP_ActiveSet_PCG_PLS:
             rz = rz_new
         return d
 
-    def free_mask(self, U, grad, umin, umax, atol=1e-12, gtol=1e-12):
+    def free_mask(self,
+                  U: np.ndarray,
+                  grad: np.ndarray,
+                  umin: np.ndarray,
+                  umax: np.ndarray,
+                  atol: float = 1e-12,
+                  gtol: float = 1e-12):
         """
         True = Free, False = Fixed.
         At lower bound g>0 (going outside) -> Fixed.
@@ -68,15 +79,15 @@ class SQP_ActiveSet_PCG_PLS:
 
     def solve(
             self,
-            U_init,
+            U_init: np.ndarray,
             cost_and_grad_fn,
             hvp_fn,
-            u_min,
-            u_max,
-            max_iter=50,
-            cg_it=30,
-            cg_tol=1e-4,
-            lam=1e-6,
+            u_min: np.ndarray,
+            u_max: np.ndarray,
+            max_iter: int = 50,
+            cg_it: int = 30,
+            cg_tol: float = 1e-4,
+            lambda_factor: float = 1e-6,
             callback=None
     ):
         """
@@ -108,14 +119,14 @@ class SQP_ActiveSet_PCG_PLS:
             def hvp_free(p_free_flat):
                 P = vec_unmask(p_free_flat).reshape(U.shape)
                 Hv_full = hvp_fn(U, P)
-                Hv_full += lam * P
+                Hv_full += lambda_factor * P
                 return vec_mask(Hv_full).reshape(-1)
             rhs_free = (-vec_mask(g)).reshape(-1)
 
             # If the user provides appropriate preconditioning, replace it here.
             diagR_full = np.ones_like(U)
 
-            M_inv_full = 1.0 / (diagR_full + lam)
+            M_inv_full = 1.0 / (diagR_full + lambda_factor)
             M_inv_free = vec_mask(M_inv_full).reshape(-1)
             d_free = self.pcg(lambda v: hvp_free(v), rhs_free,
                               tol=cg_tol, max_it=cg_it, M_inv=M_inv_free)
