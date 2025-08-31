@@ -28,6 +28,18 @@ SOLVER_MAX_ITERATION_DEFAULT = 100
 LAMBDA_FACTOR_DEFAULT = 1e-6
 
 
+def apply_M_inv(
+        x: np.ndarray,
+        M_inv):
+
+    if M_inv is None:
+        return x
+    elif callable(M_inv):
+        return M_inv(x)
+    else:
+        return x * M_inv
+
+
 def vec_mask(
         A: np.ndarray,
         mask: np.ndarray):
@@ -62,13 +74,13 @@ def hvp_free(
 class SQP_ActiveSet_PCG_PLS:
     def __init__(
             self,
-            grad_norm_zero_limit=GRAD_NORM_ZERO_LIMIT_DEFAULT,
+            gradient_norm_zero_limit=GRAD_NORM_ZERO_LIMIT_DEFAULT,
             alpha_small_limit=ALPHA_SMALL_LIMIT_DEFAULT,
             alpha_decay_rate=ALPHA_DECAY_RATE_DEFAULT,
             pcg_php_minus_limit=PCG_PHP_MINUS_LIMIT_DEFAULT,
     ):
 
-        self.grad_norm_zero_limit = grad_norm_zero_limit
+        self.gradient_norm_zero_limit = gradient_norm_zero_limit
         self.alpha_small_limit = alpha_small_limit
         self.alpha_decay_rate = alpha_decay_rate
         self.pcg_php_minus_limit = pcg_php_minus_limit
@@ -104,17 +116,11 @@ class SQP_ActiveSet_PCG_PLS:
         if np.linalg.norm(r) < RHS_NORM_ZERO_LIMIT_DEFAULT:
             return d
 
-        def apply_Minv(x):
-            if M_inv is None:
-                return x
-            elif callable(M_inv):
-                return M_inv(x)
-            else:
-                return x * M_inv
-        z = apply_Minv(r)
+        z = apply_M_inv(r, M_inv)
         p = z.copy()
         rz = np.vdot(r, z)
         r0 = np.linalg.norm(r)
+
         for _ in range(max_it):
             Hp = hvp_function(p)
             denom = np.vdot(p, Hp)
@@ -125,7 +131,7 @@ class SQP_ActiveSet_PCG_PLS:
             r -= alpha * Hp
             if np.linalg.norm(r) <= tol * r0:
                 break
-            z = apply_Minv(r)
+            z = apply_M_inv(r, M_inv)
             rz_new = np.vdot(r, z)
             beta = rz_new / rz
             p = z + beta * p
@@ -134,7 +140,7 @@ class SQP_ActiveSet_PCG_PLS:
 
     def free_mask(self,
                   U: np.ndarray,
-                  grad: np.ndarray,
+                  gradient: np.ndarray,
                   umin: np.ndarray,
                   umax: np.ndarray,
                   atol: float = FREE_MASK_U_NEAR_LIMIT_DEFAULT,
@@ -148,14 +154,14 @@ class SQP_ActiveSet_PCG_PLS:
         m = np.ones_like(U, dtype=bool)
         at_lower = np.isclose(U, umin, atol=atol)
         at_upper = np.isclose(U, umax, atol=atol)
-        m[at_lower & (grad > gtol)] = False
-        m[at_upper & (grad < -gtol)] = False
+        m[at_lower & (gradient > gtol)] = False
+        m[at_upper & (gradient < -gtol)] = False
         return m
 
     def solve(
         self,
-        U_init: np.ndarray,
-        cost_and_grad_function,
+        U_initial: np.ndarray,
+        cost_and_gradient_function,
         hvp_function,
         x0: np.ndarray,
         u_min: np.ndarray,
@@ -168,18 +174,18 @@ class SQP_ActiveSet_PCG_PLS:
         """
         General SQP solver
         (Active Set + Preconditioned Conjugate Gradient + Projected Line Search).
-        - U_init: Initial input sequence (N, nu)
-        - cost_and_grad_function(U): Function that returns (J, grad)
+        - U_initial: Initial input sequence (N, nu)
+        - cost_and_gradient_function(U): Function that returns (J, gradient)
         - hvp_function(x0, U, V): Function that returns HVP (H*V)
         - u_min, u_max: Input lower and upper bounds (N, nu)
         """
         self.x0 = x0
-        U = U_init.copy()
+        U = U_initial.copy()
 
         for iteration in range(max_iteration):
-            J, grad = cost_and_grad_function(U)
-            g = grad.copy()
-            if np.linalg.norm(g) < self.grad_norm_zero_limit:
+            J, gradient = cost_and_gradient_function(U)
+            g = gradient.copy()
+            if np.linalg.norm(g) < self.gradient_norm_zero_limit:
                 break
             mask = self.free_mask(U, g, u_min, u_max)
 
@@ -204,7 +210,7 @@ class SQP_ActiveSet_PCG_PLS:
             while True:
                 U_candidate = U + alpha * d
                 U_candidate = np.minimum(np.maximum(U_candidate, u_min), u_max)
-                J_candidate, _ = cost_and_grad_function(U_candidate)
+                J_candidate, _ = cost_and_gradient_function(U_candidate)
                 if J_candidate <= J or alpha < self.alpha_small_limit:
                     U_new = U_candidate
                     J = J_candidate

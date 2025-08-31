@@ -184,13 +184,13 @@ u_max_mat = np.tile(u_max, (N, 1))
 solver = SQP_ActiveSet_PCG_PLS()
 
 U_opt, J_opt = solver.solve(
-    U_initial,
-    compute_cost_and_gradient,
-    hvp_analytic,
-    x0,
-    u_min_mat,
-    u_max_mat,
-    max_iter=20
+    U_initial=U_initial,
+    cost_and_gradient_function=compute_cost_and_gradient,
+    hvp_function=hvp_analytic,
+    x0=x0,
+    u_min=u_min_mat,
+    u_max=u_max_mat,
+    max_iteration=20
 )
 print("Optimized cost:", J_opt)
 print("Optimal input sequence:\n", U_opt)
