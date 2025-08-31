@@ -181,7 +181,9 @@ U_initial = np.zeros((N, nu))
 u_min_mat = np.tile(u_min, (N, 1))
 u_max_mat = np.tile(u_max, (N, 1))
 
-solver = SQP_ActiveSet_PCG_PLS()
+solver = SQP_ActiveSet_PCG_PLS(
+    U_size=(U_initial.shape[0], U_initial.shape[1])
+)
 
 U_opt, J_opt = solver.solve(
     U_initial=U_initial,
@@ -192,5 +194,6 @@ U_opt, J_opt = solver.solve(
     u_max=u_max_mat,
     max_iteration=20
 )
+
 print("Optimized cost:", J_opt)
 print("Optimal input sequence:\n", U_opt)

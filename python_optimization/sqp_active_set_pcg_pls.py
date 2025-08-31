@@ -74,6 +74,7 @@ def hvp_free(
 class SQP_ActiveSet_PCG_PLS:
     def __init__(
             self,
+            U_size: int,
             gradient_norm_zero_limit=GRADIENT_NORM_ZERO_LIMIT_DEFAULT,
             alpha_small_limit=ALPHA_SMALL_LIMIT_DEFAULT,
             alpha_decay_rate=ALPHA_DECAY_RATE_DEFAULT,
@@ -90,6 +91,8 @@ class SQP_ActiveSet_PCG_PLS:
         self.hvp_function = None
         self.x0 = None
         self.lambda_factor = None
+
+        self.diag_R_full = np.ones((U_size))
 
     def hvp_free_for_pcg(self, v):
         return hvp_free(
@@ -116,6 +119,7 @@ class SQP_ActiveSet_PCG_PLS:
         if np.linalg.norm(r) < RHS_NORM_ZERO_LIMIT_DEFAULT:
             return d
 
+        # Preconditioning
         z = apply_M_inv(r, M_inv)
         p = z.copy()
         rz = np.vdot(r, z)
@@ -123,10 +127,13 @@ class SQP_ActiveSet_PCG_PLS:
 
         for _ in range(max_it):
             Hp = hvp_function(p)
-            denom = np.vdot(p, Hp)
-            if denom <= self.pcg_php_minus_limit:
+            denominator = np.vdot(p, Hp)
+
+            # Simple handling of negative curvature and semi-definiteness
+            if denominator <= self.pcg_php_minus_limit:
                 break
-            alpha = rz / denom
+
+            alpha = rz / denominator
             d += alpha * p
             r -= alpha * Hp
             if np.linalg.norm(r) <= tol * r0:
@@ -154,8 +161,10 @@ class SQP_ActiveSet_PCG_PLS:
         m = np.ones_like(U, dtype=bool)
         at_lower = np.isclose(U, umin, atol=atol)
         at_upper = np.isclose(U, umax, atol=atol)
+
         m[at_lower & (gradient > gtol)] = False
         m[at_upper & (gradient < -gtol)] = False
+
         return m
 
     def solve(
@@ -183,6 +192,7 @@ class SQP_ActiveSet_PCG_PLS:
         U = U_initial.copy()
 
         for iteration in range(max_iteration):
+            # Calculate cost and gradient
             J, gradient = cost_and_gradient_function(U)
             g = gradient.copy()
             if np.linalg.norm(g) < self.gradient_norm_zero_limit:
@@ -191,10 +201,7 @@ class SQP_ActiveSet_PCG_PLS:
 
             rhs_free = (-vec_mask(g, mask)).reshape(-1)
 
-            # If the user provides appropriate preconditioning, replace it here.
-            diag_R_full = np.ones_like(U)
-
-            M_inv_full = 1.0 / (diag_R_full + lambda_factor)
+            M_inv_full = 1.0 / (self.diag_R_full + lambda_factor)
             M_inv_free = vec_mask(M_inv_full, mask).reshape(-1)
 
             self.mask = mask
@@ -207,6 +214,7 @@ class SQP_ActiveSet_PCG_PLS:
             d = vec_unmask(d_free.reshape(-1), mask, U.shape)
             alpha = 1.0
             U_new = U.copy()
+
             while True:
                 U_candidate = U + alpha * d
                 U_candidate = np.minimum(np.maximum(U_candidate, u_min), u_max)
