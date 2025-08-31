@@ -154,8 +154,8 @@ def hvp_analytic(x0, U, V):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
 
         # dλ_k
-        term_xx = fx_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])   # 新規
-        term_xu = fx_xu_T_contract(X[k], U[k], lam[k + 1], V[k])    # 新規
+        term_xx = fx_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
+        term_xu = fx_xu_T_contract(X[k], U[k], lam[k + 1], V[k])
         dlam[k] = (
             l_xx(X[k], U[k]) @ dx[k] +
             l_xu(X[k], U[k]) @ V[k] +
@@ -164,8 +164,8 @@ def hvp_analytic(x0, U, V):
         )
 
         # (HV)_k
-        term_ux = fu_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])   # 新規
-        term_uu = fu_uu_T_contract(X[k], U[k], lam[k + 1], V[k])    # 新規
+        term_ux = fu_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
+        term_uu = fu_uu_T_contract(X[k], U[k], lam[k + 1], V[k])
         Hu[k] = (
             l_uu(X[k], U[k]) @ V[k] +
             l_ux(X[k], U[k]) @ dx[k] +
