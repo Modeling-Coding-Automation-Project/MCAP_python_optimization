@@ -128,7 +128,11 @@ class SQP_ActiveSet_PCG_PLS:
 
             M_inv_full = 1.0 / (diagR_full + lambda_factor)
             M_inv_free = vec_mask(M_inv_full).reshape(-1)
-            d_free = self.pcg(lambda v: hvp_free(v), rhs_free,
+
+            def hvp_free_wrapper(v):
+                return hvp_free(v)
+
+            d_free = self.pcg(hvp_free_wrapper, rhs_free,
                               tol=cg_tol, max_it=cg_it, M_inv=M_inv_free)
             d = vec_unmask(d_free.reshape(-1))
             alpha = 1.0
