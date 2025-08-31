@@ -9,6 +9,23 @@ PLS: Projected Line Search
 import numpy as np
 
 
+def vec_mask(A, mask):
+    return A[mask]
+
+
+def vec_unmask(v, mask, U_shape):
+    out = np.zeros(U_shape)
+    out[mask] = v
+    return out
+
+
+def hvp_free(p_free_flat, mask, U, hvp_fn, lambda_factor):
+    P = vec_unmask(p_free_flat, mask, U.shape).reshape(U.shape)
+    Hv_full = hvp_fn(U, P)
+    Hv_full += lambda_factor * P
+    return vec_mask(Hv_full, mask).reshape(-1)
+
+
 class SQP_ActiveSet_PCG_PLS:
     def __init__(self):
         pass
@@ -108,33 +125,20 @@ class SQP_ActiveSet_PCG_PLS:
                 break
             mask = self.free_mask(U, g, u_min, u_max)
 
-            def vec_mask(A):
-                return A[mask]
-
-            def vec_unmask(v):
-                out = np.zeros_like(U)
-                out[mask] = v
-                return out
-
-            def hvp_free(p_free_flat):
-                P = vec_unmask(p_free_flat).reshape(U.shape)
-                Hv_full = hvp_fn(U, P)
-                Hv_full += lambda_factor * P
-                return vec_mask(Hv_full).reshape(-1)
-            rhs_free = (-vec_mask(g)).reshape(-1)
+            rhs_free = (-vec_mask(g, mask)).reshape(-1)
 
             # If the user provides appropriate preconditioning, replace it here.
             diagR_full = np.ones_like(U)
 
             M_inv_full = 1.0 / (diagR_full + lambda_factor)
-            M_inv_free = vec_mask(M_inv_full).reshape(-1)
+            M_inv_free = vec_mask(M_inv_full, mask).reshape(-1)
 
             def hvp_free_wrapper(v):
-                return hvp_free(v)
+                return hvp_free(v, mask, U, hvp_fn, lambda_factor)
 
             d_free = self.pcg(hvp_free_wrapper, rhs_free,
                               tol=cg_tol, max_it=cg_it, M_inv=M_inv_free)
-            d = vec_unmask(d_free.reshape(-1))
+            d = vec_unmask(d_free.reshape(-1), mask, U.shape)
             alpha = 1.0
             U_new = U.copy()
             while True:
