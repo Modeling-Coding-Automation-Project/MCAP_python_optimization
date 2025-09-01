@@ -196,22 +196,3 @@ class ActiveSet2D:
         """
         self._check_bounds(row, col)
         return bool(self._active_flags[row, col])
-
-    # ---- optional: ユーティリティ ----
-    def get_active_flags(self):
-        """
-        アクティブフラグ行列（bool, shape=(n_rows, n_cols)）を返します。
-        """
-        return self._active_flags
-
-    def clear(self):
-        """
-        全要素を非アクティブにして集合を空にします。
-        """
-        if self._number_of_active > 0:
-            # アクティブだった場所のフラグをまとめてFalseへ
-            for i in range(self._number_of_active):
-                r, c = self._active_pairs[i]
-                self._active_flags[r, c] = False
-            self._active_pairs[:] = 0
-            self._number_of_active = 0
