@@ -119,7 +119,7 @@ class SQP_ActiveSet_PCG_PLS:
             return d
 
         # Preconditioning
-        z = apply_M_inv(r, M_inv)
+        z = apply_M_inv(r, M_inv=M_inv)
         p = z.copy()
         rz = np.vdot(r, z)
         r0 = np.linalg.norm(r)
@@ -137,7 +137,7 @@ class SQP_ActiveSet_PCG_PLS:
             r -= alpha * Hp
             if np.linalg.norm(r) <= tol * r0:
                 break
-            z = apply_M_inv(r, M_inv)
+            z = apply_M_inv(r, M_inv=M_inv)
             rz_new = np.vdot(r, z)
             beta = rz_new / rz
             p = z + beta * p
