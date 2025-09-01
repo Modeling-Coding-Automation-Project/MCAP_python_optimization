@@ -30,12 +30,10 @@ LAMBDA_FACTOR_DEFAULT = 1e-6
 
 def apply_M_inv(
         x: np.ndarray,
-        M_inv):
+        M_inv=None):
 
     if M_inv is None:
         return x
-    elif callable(M_inv):
-        return M_inv(x)
     else:
         return x * M_inv
 
