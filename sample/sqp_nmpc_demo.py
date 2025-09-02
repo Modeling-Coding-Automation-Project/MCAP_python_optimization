@@ -96,16 +96,16 @@ def l_xu(x, u): return np.zeros((nx, nu))
 def l_ux(x, u): return np.zeros((nu, nx))
 
 
-def simulate_trajectory(x0, U):
+def simulate_trajectory(X_initial, U):
     X = np.zeros((N + 1, nx))
-    X[0] = x0
+    X[0] = X_initial
     for k in range(N):
         X[k + 1] = plant_dynamics(X[k], U[k])
     return X
 
 
-def compute_cost_and_gradient(U):
-    X = simulate_trajectory(x0, U)
+def compute_cost_and_gradient(X_initial, U):
+    X = simulate_trajectory(X_initial, U)
     J = 0.0
     for k in range(N):
         J += X[k] @ Q @ X[k] + U[k] @ R @ U[k]
@@ -119,7 +119,7 @@ def compute_cost_and_gradient(U):
     return J, grad
 
 
-def hvp_analytic(x0, U, V):
+def hvp_analytic(X_initial, U, V):
     """
     解析HVP: 任意の方向 V (N x nu) に対し H*V を返す（H = ∇^2 J）。
     手順:
@@ -129,7 +129,7 @@ def hvp_analytic(x0, U, V):
       4) 後退2階随伴: δλ, δQ_u を後退で生成 → これが H*V
     """
     # --- 1) forward states
-    X = simulate_trajectory(x0, U)
+    X = simulate_trajectory(X_initial, U)
 
     # --- 2) first-order adjoint (costate λ)
     lam = np.zeros((N + 1, nx))
@@ -176,7 +176,7 @@ def hvp_analytic(x0, U, V):
 
 
 # --- Example Execution ---
-x0 = np.array([5.0, 0.0, 5.0, 0.0])
+X_initial = np.array([5.0, 0.0, 5.0, 0.0])
 U_initial = np.zeros((N, nu))
 u_min_mat = np.tile(u_min, (N, 1))
 u_max_mat = np.tile(u_max, (N, 1))
@@ -190,7 +190,7 @@ U_opt, J_opt = solver.solve(
     U_initial=U_initial,
     cost_and_gradient_function=compute_cost_and_gradient,
     hvp_function=hvp_analytic,
-    x0=x0,
+    X_initial=X_initial,
     u_min=u_min_mat,
     u_max=u_max_mat,
 )

@@ -74,11 +74,6 @@ class SQP_ActiveSet_PCG_PLS:
         self.alpha_decay_rate = alpha_decay_rate
         self.pcg_php_minus_limit = pcg_php_minus_limit
 
-        self.mask = None
-        self.U = None
-        self.hvp_function = None
-        self.x0 = None
-
         self.diag_R_full = np.ones((U_size))
 
         self.max_iteration = max_iteration
@@ -86,6 +81,11 @@ class SQP_ActiveSet_PCG_PLS:
 
         self.pcg_tol = pcg_tol
         self.lambda_factor = lambda_factor
+
+        self.mask = None
+        self.U = None
+        self.hvp_function = None
+        self.X_initial = None
 
     def set_max_iteration(self, max_iteration: int):
         self.max_iteration = max_iteration
@@ -96,7 +96,7 @@ class SQP_ActiveSet_PCG_PLS:
     ):
         P = vec_unmask(p_free_flat, self.mask,
                        self.U.shape).reshape(self.U.shape)
-        Hv_full = self.hvp_function(self.x0, self.U, P)
+        Hv_full = self.hvp_function(self.X_initial, self.U, P)
         Hv_full += self.lambda_factor * P
 
         return vec_mask(Hv_full, self.mask).reshape(-1)
@@ -169,7 +169,7 @@ class SQP_ActiveSet_PCG_PLS:
         U_initial: np.ndarray,
         cost_and_gradient_function,
         hvp_function,
-        x0: np.ndarray,
+        X_initial: np.ndarray,
         u_min: np.ndarray,
         u_max: np.ndarray,
     ):
@@ -177,16 +177,16 @@ class SQP_ActiveSet_PCG_PLS:
         General SQP solver
         (Active Set + Preconditioned Conjugate Gradient + Projected Line Search).
         - U_initial: Initial input sequence (N, nu)
-        - cost_and_gradient_function(U): Function that returns (J, gradient)
-        - hvp_function(x0, U, V): Function that returns HVP (H*V)
+        - cost_and_gradient_function(X_initial, U): Function that returns (J, gradient)
+        - hvp_function(X_initial, U, V): Function that returns HVP (H*V)
         - u_min, u_max: Input lower and upper bounds (N, nu)
         """
-        self.x0 = x0
+        self.X_initial = X_initial
         U = U_initial.copy()
 
         for iteration in range(self.max_iteration):
             # Calculate cost and gradient
-            J, gradient = cost_and_gradient_function(U)
+            J, gradient = cost_and_gradient_function(X_initial, U)
             g = gradient.copy()
             if np.linalg.norm(g) < self.gradient_norm_zero_limit:
                 break
@@ -217,7 +217,8 @@ class SQP_ActiveSet_PCG_PLS:
             while True:
                 U_candidate = U + alpha * d
                 U_candidate = np.minimum(np.maximum(U_candidate, u_min), u_max)
-                J_candidate, _ = cost_and_gradient_function(U_candidate)
+                J_candidate, _ = cost_and_gradient_function(
+                    X_initial, U_candidate)
                 if J_candidate <= J or alpha < self.alpha_small_limit:
                     U_new = U_candidate
                     J = J_candidate
