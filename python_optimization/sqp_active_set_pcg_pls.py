@@ -72,39 +72,40 @@ class SQP_ActiveSet_PCG_PLS:
             lambda_factor: float = LAMBDA_FACTOR_DEFAULT,
     ):
 
-        self.gradient_norm_zero_limit = gradient_norm_zero_limit
-        self.alpha_small_limit = alpha_small_limit
-        self.alpha_decay_rate = alpha_decay_rate
-        self.pcg_php_minus_limit = pcg_php_minus_limit
+        self._gradient_norm_zero_limit = gradient_norm_zero_limit
+        self._alpha_small_limit = alpha_small_limit
+        self._alpha_decay_rate = alpha_decay_rate
+        self._pcg_php_minus_limit = pcg_php_minus_limit
 
-        self.diag_R_full = np.ones((U_size))
+        self._max_iteration = max_iteration
+        self._pcg_iteration = pcg_iteration
 
-        self.max_iteration = max_iteration
-        self.pcg_iteration = pcg_iteration
+        self._pcg_tol = pcg_tol
+        self._lambda_factor = lambda_factor
 
-        self.pcg_tol = pcg_tol
-        self.lambda_factor = lambda_factor
+        self._line_search_max_iteration = line_search_max_iteration
 
-        self.line_search_max_iteration = line_search_max_iteration
+        self._diag_R_full = np.ones((U_size))
 
-        self.mask = None
-        self.U = None
+        self._mask = None
+
+        self.U: np.ndarray = None
         self.hvp_function = None
         self.X_initial = None
 
     def set_max_iteration(self, max_iteration: int):
-        self.max_iteration = max_iteration
+        self._max_iteration = max_iteration
 
     def hvp_free(
         self,
         p_free_flat: np.ndarray,
     ):
-        P = vec_unmask(p_free_flat, self.mask,
+        P = vec_unmask(p_free_flat, self._mask,
                        self.U.shape).reshape(self.U.shape)
         Hv_full = self.hvp_function(self.X_initial, self.U, P)
-        Hv_full += self.lambda_factor * P
+        Hv_full += self._lambda_factor * P
 
-        return vec_mask(Hv_full, self.mask).reshape(-1)
+        return vec_mask(Hv_full, self._mask).reshape(-1)
 
     def preconditioned_conjugate_gradient(
             self,
@@ -126,19 +127,19 @@ class SQP_ActiveSet_PCG_PLS:
         rz = np.vdot(r, z)
         r0 = np.linalg.norm(r)
 
-        for _ in range(self.pcg_iteration):
+        for _ in range(self._pcg_iteration):
             Hp = self.hvp_free(p)
 
             denominator = np.vdot(p, Hp)
 
             # Simple handling of negative curvature and semi-definiteness
-            if denominator <= self.pcg_php_minus_limit:
+            if denominator <= self._pcg_php_minus_limit:
                 break
 
             alpha = rz / denominator
             d += alpha * p
             r -= alpha * Hp
-            if np.linalg.norm(r) <= self.pcg_tol * r0:
+            if np.linalg.norm(r) <= self._pcg_tol * r0:
                 break
             z = apply_M_inv(r, M_inv=M_inv)
             rz_new = np.vdot(r, z)
@@ -189,20 +190,19 @@ class SQP_ActiveSet_PCG_PLS:
         self.X_initial = X_initial
         U = U_initial.copy()
 
-        for _ in range(self.max_iteration):
+        for _ in range(self._max_iteration):
             # Calculate cost and gradient
             J, gradient = cost_and_gradient_function(X_initial, U)
             g = gradient.copy()
-            if np.linalg.norm(g) < self.gradient_norm_zero_limit:
+            if np.linalg.norm(g) < self._gradient_norm_zero_limit:
                 break
-            mask = self.free_mask(U, g, u_min, u_max)
+            self._mask = self.free_mask(U, g, u_min, u_max)
 
-            rhs_free = (-vec_mask(g, mask)).reshape(-1)
+            rhs_free = (-vec_mask(g, self._mask)).reshape(-1)
 
-            M_inv_full = 1.0 / (self.diag_R_full + self.lambda_factor)
-            M_inv_free = vec_mask(M_inv_full, mask).reshape(-1)
+            M_inv_full = 1.0 / (self._diag_R_full + self._lambda_factor)
+            M_inv_free = vec_mask(M_inv_full, self._mask).reshape(-1)
 
-            self.mask = mask
             self.U = U
             self.hvp_function = hvp_function
 
@@ -211,7 +211,7 @@ class SQP_ActiveSet_PCG_PLS:
                 M_inv=M_inv_free)
 
             # Back-substitution of the solution (fixed components remain 0)
-            d = vec_unmask(d_free.reshape(-1), mask, U.shape)
+            d = vec_unmask(d_free.reshape(-1), self._mask, U.shape)
 
             # line search and projection
             # (No distinction between fixed/free is needed here,
@@ -219,16 +219,16 @@ class SQP_ActiveSet_PCG_PLS:
             alpha = 1.0
             U_new = U.copy()
 
-            for _ in range(self.line_search_max_iteration):
+            for _ in range(self._line_search_max_iteration):
                 U_candidate = U + alpha * d
                 U_candidate = np.minimum(np.maximum(U_candidate, u_min), u_max)
                 J_candidate, _ = cost_and_gradient_function(
                     X_initial, U_candidate)
-                if J_candidate <= J or alpha < self.alpha_small_limit:
+                if J_candidate <= J or alpha < self._alpha_small_limit:
                     U_new = U_candidate
                     J = J_candidate
                     break
-                alpha *= self.alpha_decay_rate
+                alpha *= self._alpha_decay_rate
             U = U_new
 
         return U, J

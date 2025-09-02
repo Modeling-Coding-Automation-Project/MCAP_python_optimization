@@ -145,9 +145,9 @@ def hvp_analytic(X_initial, U, V):
         dx[k + 1] = A_k @ dx[k] + B_k @ V[k]
 
     # --- 4) backward second-order adjoint（一般形） ---
-    dlam = np.zeros((N + 1, nx))
+    d_lambda = np.zeros((N + 1, nx))
     # 端末項 φ_xx = l_xx(X_N,·) の扱いに合わせる（今は2P）
-    dlam[N] = l_xx(X[N], None) @ dx[N]
+    d_lambda[N] = l_xx(X[N], None) @ dx[N]
 
     Hu = np.zeros_like(U)
     for k in range(N - 1, -1, -1):
@@ -156,10 +156,10 @@ def hvp_analytic(X_initial, U, V):
         # dλ_k
         term_xx = fx_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
         term_xu = fx_xu_T_contract(X[k], U[k], lam[k + 1], V[k])
-        dlam[k] = (
+        d_lambda[k] = (
             l_xx(X[k], U[k]) @ dx[k] +
             l_xu(X[k], U[k]) @ V[k] +
-            A_k.T @ dlam[k + 1] +
+            A_k.T @ d_lambda[k + 1] +
             term_xx + term_xu
         )
 
@@ -169,7 +169,7 @@ def hvp_analytic(X_initial, U, V):
         Hu[k] = (
             l_uu(X[k], U[k]) @ V[k] +
             l_ux(X[k], U[k]) @ dx[k] +
-            B_k.T @ dlam[k + 1] +
+            B_k.T @ d_lambda[k + 1] +
             term_ux + term_uu
         )
     return Hu
