@@ -184,7 +184,7 @@ u_max_mat = np.tile(u_max, (N, 1))
 solver = SQP_ActiveSet_PCG_PLS(
     U_size=(U_initial.shape[0], U_initial.shape[1])
 )
-solver.set_max_iteration(20)
+solver.set_solver_max_iteration(20)
 
 U_opt, J_opt = solver.solve(
     U_initial=U_initial,

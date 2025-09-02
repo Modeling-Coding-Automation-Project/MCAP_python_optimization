@@ -65,8 +65,8 @@ class SQP_ActiveSet_PCG_PLS:
             alpha_small_limit=ALPHA_SMALL_LIMIT_DEFAULT,
             alpha_decay_rate=ALPHA_DECAY_RATE_DEFAULT,
             pcg_php_minus_limit=PCG_PHP_MINUS_LIMIT_DEFAULT,
-            max_iteration: int = SOLVER_MAX_ITERATION_DEFAULT,
-            pcg_iteration: int = PCG_MAX_ITERATION_DEFAULT,
+            solver_max_iteration: int = SOLVER_MAX_ITERATION_DEFAULT,
+            pcg_max_iteration: int = PCG_MAX_ITERATION_DEFAULT,
             line_search_max_iteration: int = LINE_SEARCH_MAX_ITERATION_DEFAULT,
             pcg_tol: float = PCG_TOL_DEFAULT,
             lambda_factor: float = LAMBDA_FACTOR_DEFAULT,
@@ -77,13 +77,12 @@ class SQP_ActiveSet_PCG_PLS:
         self._alpha_decay_rate = alpha_decay_rate
         self._pcg_php_minus_limit = pcg_php_minus_limit
 
-        self._max_iteration = max_iteration
-        self._pcg_iteration = pcg_iteration
+        self._solver_max_iteration = solver_max_iteration
+        self._pcg_max_iteration = pcg_max_iteration
+        self._line_search_max_iteration = line_search_max_iteration
 
         self._pcg_tol = pcg_tol
         self._lambda_factor = lambda_factor
-
-        self._line_search_max_iteration = line_search_max_iteration
 
         self._diag_R_full = np.ones((U_size))
 
@@ -93,9 +92,38 @@ class SQP_ActiveSet_PCG_PLS:
         self.hvp_function = None
         self.X_initial = None
 
-    def set_max_iteration(self, max_iteration: int):
-        self._max_iteration = max_iteration
+    # setter
+    def set_gradient_norm_zero_limit(self, limit: float):
+        self._gradient_norm_zero_limit = limit
 
+    def set_alpha_small_limit(self, limit: float):
+        self._alpha_small_limit = limit
+
+    def set_alpha_decay_rate(self, rate: float):
+        self._alpha_decay_rate = rate
+
+    def set_pcg_php_minus_limit(self, limit: float):
+        self._pcg_php_minus_limit = limit
+
+    def set_solver_max_iteration(self, max_iteration: int):
+        self._solver_max_iteration = max_iteration
+
+    def set_pcg_max_iteration(self, max_iteration: int):
+        self._pcg_max_iteration = max_iteration
+
+    def set_line_search_max_iteration(self, max_iteration: int):
+        self._line_search_max_iteration = max_iteration
+
+    def set_pcg_tol(self, tol: float):
+        self._pcg_tol = tol
+
+    def set_lambda_factor(self, factor: float):
+        self._lambda_factor = factor
+
+    def set_diag_R_full(self, diag_R_full: np.ndarray):
+        self._diag_R_full = diag_R_full
+
+    # functions
     def hvp_free(
         self,
         p_free_flat: np.ndarray,
@@ -127,7 +155,7 @@ class SQP_ActiveSet_PCG_PLS:
         rz = np.vdot(r, z)
         r0 = np.linalg.norm(r)
 
-        for _ in range(self._pcg_iteration):
+        for _ in range(self._pcg_max_iteration):
             Hp = self.hvp_free(p)
 
             denominator = np.vdot(p, Hp)
@@ -190,7 +218,7 @@ class SQP_ActiveSet_PCG_PLS:
         self.X_initial = X_initial
         U = U_initial.copy()
 
-        for _ in range(self._max_iteration):
+        for _ in range(self._solver_max_iteration):
             # Calculate cost and gradient
             J, gradient = cost_and_gradient_function(X_initial, U)
             g = gradient.copy()
