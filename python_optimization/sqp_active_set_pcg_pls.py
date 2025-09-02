@@ -89,8 +89,12 @@ class SQP_ActiveSet_PCG_PLS:
         self._mask = None
 
         self.U: np.ndarray = None
-        self.hvp_function = None
-        self.X_initial = None
+        self.X_initial: np.ndarray = None
+        self.hvp_function: callable = None
+
+        self._solver_step_iterated_number = 0
+        self._pcg_step_iterated_number = 0
+        self._line_search_step_iterated_number = 0
 
     # setter
     def set_gradient_norm_zero_limit(self, limit: float):
@@ -155,13 +159,13 @@ class SQP_ActiveSet_PCG_PLS:
         rz = np.vdot(r, z)
         r0 = np.linalg.norm(r)
 
-        for _ in range(self._pcg_max_iteration):
+        for pcg_iteration in range(self._pcg_max_iteration):
             Hp = self.hvp_free(p)
-
             denominator = np.vdot(p, Hp)
 
             # Simple handling of negative curvature and semi-definiteness
             if denominator <= self._pcg_php_minus_limit:
+                self._pcg_step_iterated_number = pcg_iteration + 1
                 break
 
             alpha = rz / denominator
@@ -201,8 +205,8 @@ class SQP_ActiveSet_PCG_PLS:
     def solve(
         self,
         U_initial: np.ndarray,
-        cost_and_gradient_function,
-        hvp_function,
+        cost_and_gradient_function: callable,
+        hvp_function: callable,
         X_initial: np.ndarray,
         u_min: np.ndarray,
         u_max: np.ndarray,
@@ -218,12 +222,15 @@ class SQP_ActiveSet_PCG_PLS:
         self.X_initial = X_initial
         U = U_initial.copy()
 
-        for _ in range(self._solver_max_iteration):
+        for solver_iteration in range(self._solver_max_iteration):
             # Calculate cost and gradient
             J, gradient = cost_and_gradient_function(X_initial, U)
             g = gradient.copy()
+
             if np.linalg.norm(g) < self._gradient_norm_zero_limit:
+                self._solver_step_iterated_number = solver_iteration + 1
                 break
+
             self._mask = self.free_mask(U, g, u_min, u_max)
 
             rhs_free = (-vec_mask(g, self._mask)).reshape(-1)
@@ -247,15 +254,18 @@ class SQP_ActiveSet_PCG_PLS:
             alpha = 1.0
             U_new = U.copy()
 
-            for _ in range(self._line_search_max_iteration):
+            for line_search_iteration in range(self._line_search_max_iteration):
                 U_candidate = U + alpha * d
                 U_candidate = np.minimum(np.maximum(U_candidate, u_min), u_max)
                 J_candidate, _ = cost_and_gradient_function(
                     X_initial, U_candidate)
+
                 if J_candidate <= J or alpha < self._alpha_small_limit:
                     U_new = U_candidate
                     J = J_candidate
+                    self._line_search_step_iterated_number = line_search_iteration + 1
                     break
+
                 alpha *= self._alpha_decay_rate
             U = U_new
 
