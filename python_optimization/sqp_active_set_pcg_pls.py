@@ -93,7 +93,7 @@ class SQP_ActiveSet_PCG_PLS:
             self,
             rhs: np.ndarray,
             tol: float = PCG_TOL_DEFAULT,
-            max_it: int = PCG_MAX_ITERATION_DEFAULT,
+            max_iteration: int = PCG_MAX_ITERATION_DEFAULT,
             M_inv=None):
         """
         Solve the system hvp_function(d) = rhs using PCG without matrix.
@@ -111,7 +111,7 @@ class SQP_ActiveSet_PCG_PLS:
         rz = np.vdot(r, z)
         r0 = np.linalg.norm(r)
 
-        for _ in range(max_it):
+        for _ in range(max_iteration):
             Hp = self.hvp_free(p)
 
             denominator = np.vdot(p, Hp)
@@ -163,8 +163,8 @@ class SQP_ActiveSet_PCG_PLS:
         u_min: np.ndarray,
         u_max: np.ndarray,
         max_iteration: int = SOLVER_MAX_ITERATION_DEFAULT,
-        cg_iteration: int = PCG_MAX_ITERATION_DEFAULT,
-        cg_tol: float = PCG_TOL_DEFAULT,
+        pcg_iteration: int = PCG_MAX_ITERATION_DEFAULT,
+        pcg_tol: float = PCG_TOL_DEFAULT,
         lambda_factor: float = LAMBDA_FACTOR_DEFAULT,
     ):
         """
@@ -198,8 +198,8 @@ class SQP_ActiveSet_PCG_PLS:
 
             d_free = self.preconditioned_conjugate_gradient(
                 rhs=rhs_free,
-                tol=cg_tol,
-                max_it=cg_iteration,
+                tol=pcg_tol,
+                max_iteration=pcg_iteration,
                 M_inv=M_inv_free)
 
             # Back-substitution of the solution (fixed components remain 0)
