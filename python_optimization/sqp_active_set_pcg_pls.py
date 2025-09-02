@@ -55,20 +55,6 @@ def vec_unmask(
     return out
 
 
-def hvp_free(
-        p_free_flat: np.ndarray,
-        mask: np.ndarray,
-        U: np.ndarray,
-        hvp_function,
-        x0: np.ndarray,
-        lambda_factor: float):
-
-    P = vec_unmask(p_free_flat, mask, U.shape).reshape(U.shape)
-    Hv_full = hvp_function(x0, U, P)
-    Hv_full += lambda_factor * P
-    return vec_mask(Hv_full, mask).reshape(-1)
-
-
 class SQP_ActiveSet_PCG_PLS:
     def __init__(
             self,
@@ -92,18 +78,22 @@ class SQP_ActiveSet_PCG_PLS:
 
         self.diag_R_full = np.ones((U_size))
 
-    def hvp_free_for_pcg(self, v):
-        return hvp_free(
-            p_free_flat=v,
-            mask=self.mask,
-            U=self.U,
-            hvp_function=self.hvp_function,
-            x0=self.x0,
-            lambda_factor=self.lambda_factor)
+    @staticmethod
+    def hvp_free(
+            p_free_flat: np.ndarray,
+            mask: np.ndarray,
+            U: np.ndarray,
+            hvp_function,
+            x0: np.ndarray,
+            lambda_factor: float):
+
+        P = vec_unmask(p_free_flat, mask, U.shape).reshape(U.shape)
+        Hv_full = hvp_function(x0, U, P)
+        Hv_full += lambda_factor * P
+        return vec_mask(Hv_full, mask).reshape(-1)
 
     def preconditioned_conjugate_gradient(
             self,
-            hvp_function,
             rhs: np.ndarray,
             tol: float = PCG_TOL_DEFAULT,
             max_it: int = PCG_MAX_ITERATION_DEFAULT,
@@ -125,7 +115,14 @@ class SQP_ActiveSet_PCG_PLS:
         r0 = np.linalg.norm(r)
 
         for _ in range(max_it):
-            Hp = hvp_function(p)
+            Hp = SQP_ActiveSet_PCG_PLS.hvp_free(
+                p_free_flat=p,
+                mask=self.mask,
+                U=self.U,
+                hvp_function=self.hvp_function,
+                x0=self.x0,
+                lambda_factor=self.lambda_factor)
+
             denominator = np.vdot(p, Hp)
 
             # Simple handling of negative curvature and semi-definiteness
@@ -209,7 +206,6 @@ class SQP_ActiveSet_PCG_PLS:
             self.lambda_factor = lambda_factor
 
             d_free = self.preconditioned_conjugate_gradient(
-                hvp_function=self.hvp_free_for_pcg,
                 rhs=rhs_free,
                 tol=cg_tol,
                 max_it=cg_iteration,
