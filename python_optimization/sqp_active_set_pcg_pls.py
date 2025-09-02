@@ -127,6 +127,16 @@ class SQP_ActiveSet_PCG_PLS:
     def set_diag_R_full(self, diag_R_full: np.ndarray):
         self._diag_R_full = diag_R_full
 
+    # getter
+    def get_solver_step_iterated_number(self):
+        return self._solver_step_iterated_number
+
+    def get_pcg_step_iterated_number(self):
+        return self._pcg_step_iterated_number
+
+    def get_line_search_step_iterated_number(self):
+        return self._line_search_step_iterated_number
+
     # functions
     def hvp_free(
         self,
