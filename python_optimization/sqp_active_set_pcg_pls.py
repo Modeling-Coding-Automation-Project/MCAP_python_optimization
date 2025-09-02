@@ -78,19 +78,16 @@ class SQP_ActiveSet_PCG_PLS:
 
         self.diag_R_full = np.ones((U_size))
 
-    @staticmethod
     def hvp_free(
-            p_free_flat: np.ndarray,
-            mask: np.ndarray,
-            U: np.ndarray,
-            hvp_function,
-            x0: np.ndarray,
-            lambda_factor: float):
+        self,
+        p_free_flat: np.ndarray,
+    ):
+        P = vec_unmask(p_free_flat, self.mask,
+                       self.U.shape).reshape(self.U.shape)
+        Hv_full = self.hvp_function(self.x0, self.U, P)
+        Hv_full += self.lambda_factor * P
 
-        P = vec_unmask(p_free_flat, mask, U.shape).reshape(U.shape)
-        Hv_full = hvp_function(x0, U, P)
-        Hv_full += lambda_factor * P
-        return vec_mask(Hv_full, mask).reshape(-1)
+        return vec_mask(Hv_full, self.mask).reshape(-1)
 
     def preconditioned_conjugate_gradient(
             self,
@@ -115,13 +112,7 @@ class SQP_ActiveSet_PCG_PLS:
         r0 = np.linalg.norm(r)
 
         for _ in range(max_it):
-            Hp = SQP_ActiveSet_PCG_PLS.hvp_free(
-                p_free_flat=p,
-                mask=self.mask,
-                U=self.U,
-                hvp_function=self.hvp_function,
-                x0=self.x0,
-                lambda_factor=self.lambda_factor)
+            Hp = self.hvp_free(p)
 
             denominator = np.vdot(p, Hp)
 
