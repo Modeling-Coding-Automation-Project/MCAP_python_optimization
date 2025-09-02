@@ -20,6 +20,8 @@ PCG_TOL_DEFAULT = 1e-4
 PCG_MAX_ITERATION_DEFAULT = 30
 PCG_PHP_MINUS_LIMIT_DEFAULT = 1e-14
 
+LINE_SEARCH_MAX_ITERATION_DEFAULT = 20
+
 ALPHA_SMALL_LIMIT_DEFAULT = 1e-6
 ALPHA_DECAY_RATE_DEFAULT = 0.5
 
@@ -65,6 +67,7 @@ class SQP_ActiveSet_PCG_PLS:
             pcg_php_minus_limit=PCG_PHP_MINUS_LIMIT_DEFAULT,
             max_iteration: int = SOLVER_MAX_ITERATION_DEFAULT,
             pcg_iteration: int = PCG_MAX_ITERATION_DEFAULT,
+            line_search_max_iteration: int = LINE_SEARCH_MAX_ITERATION_DEFAULT,
             pcg_tol: float = PCG_TOL_DEFAULT,
             lambda_factor: float = LAMBDA_FACTOR_DEFAULT,
     ):
@@ -81,6 +84,8 @@ class SQP_ActiveSet_PCG_PLS:
 
         self.pcg_tol = pcg_tol
         self.lambda_factor = lambda_factor
+
+        self.line_search_max_iteration = line_search_max_iteration
 
         self.mask = None
         self.U = None
@@ -184,7 +189,7 @@ class SQP_ActiveSet_PCG_PLS:
         self.X_initial = X_initial
         U = U_initial.copy()
 
-        for iteration in range(self.max_iteration):
+        for _ in range(self.max_iteration):
             # Calculate cost and gradient
             J, gradient = cost_and_gradient_function(X_initial, U)
             g = gradient.copy()
@@ -214,7 +219,7 @@ class SQP_ActiveSet_PCG_PLS:
             alpha = 1.0
             U_new = U.copy()
 
-            while True:
+            for _ in range(self.line_search_max_iteration):
                 U_candidate = U + alpha * d
                 U_candidate = np.minimum(np.maximum(U_candidate, u_min), u_max)
                 J_candidate, _ = cost_and_gradient_function(
