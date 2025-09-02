@@ -63,6 +63,10 @@ class SQP_ActiveSet_PCG_PLS:
             alpha_small_limit=ALPHA_SMALL_LIMIT_DEFAULT,
             alpha_decay_rate=ALPHA_DECAY_RATE_DEFAULT,
             pcg_php_minus_limit=PCG_PHP_MINUS_LIMIT_DEFAULT,
+            max_iteration: int = SOLVER_MAX_ITERATION_DEFAULT,
+            pcg_iteration: int = PCG_MAX_ITERATION_DEFAULT,
+            pcg_tol: float = PCG_TOL_DEFAULT,
+            lambda_factor: float = LAMBDA_FACTOR_DEFAULT,
     ):
 
         self.gradient_norm_zero_limit = gradient_norm_zero_limit
@@ -74,9 +78,14 @@ class SQP_ActiveSet_PCG_PLS:
         self.U = None
         self.hvp_function = None
         self.x0 = None
-        self.lambda_factor = None
 
         self.diag_R_full = np.ones((U_size))
+
+        self.max_iteration = max_iteration
+        self.pcg_iteration = pcg_iteration
+
+        self.pcg_tol = pcg_tol
+        self.lambda_factor = lambda_factor
 
     def hvp_free(
         self,
@@ -92,8 +101,6 @@ class SQP_ActiveSet_PCG_PLS:
     def preconditioned_conjugate_gradient(
             self,
             rhs: np.ndarray,
-            tol: float = PCG_TOL_DEFAULT,
-            max_iteration: int = PCG_MAX_ITERATION_DEFAULT,
             M_inv=None):
         """
         Solve the system hvp_function(d) = rhs using PCG without matrix.
@@ -111,7 +118,7 @@ class SQP_ActiveSet_PCG_PLS:
         rz = np.vdot(r, z)
         r0 = np.linalg.norm(r)
 
-        for _ in range(max_iteration):
+        for _ in range(self.pcg_iteration):
             Hp = self.hvp_free(p)
 
             denominator = np.vdot(p, Hp)
@@ -123,7 +130,7 @@ class SQP_ActiveSet_PCG_PLS:
             alpha = rz / denominator
             d += alpha * p
             r -= alpha * Hp
-            if np.linalg.norm(r) <= tol * r0:
+            if np.linalg.norm(r) <= self.pcg_tol * r0:
                 break
             z = apply_M_inv(r, M_inv=M_inv)
             rz_new = np.vdot(r, z)
@@ -162,10 +169,6 @@ class SQP_ActiveSet_PCG_PLS:
         x0: np.ndarray,
         u_min: np.ndarray,
         u_max: np.ndarray,
-        max_iteration: int = SOLVER_MAX_ITERATION_DEFAULT,
-        pcg_iteration: int = PCG_MAX_ITERATION_DEFAULT,
-        pcg_tol: float = PCG_TOL_DEFAULT,
-        lambda_factor: float = LAMBDA_FACTOR_DEFAULT,
     ):
         """
         General SQP solver
@@ -178,7 +181,7 @@ class SQP_ActiveSet_PCG_PLS:
         self.x0 = x0
         U = U_initial.copy()
 
-        for iteration in range(max_iteration):
+        for iteration in range(self.max_iteration):
             # Calculate cost and gradient
             J, gradient = cost_and_gradient_function(U)
             g = gradient.copy()
@@ -188,18 +191,15 @@ class SQP_ActiveSet_PCG_PLS:
 
             rhs_free = (-vec_mask(g, mask)).reshape(-1)
 
-            M_inv_full = 1.0 / (self.diag_R_full + lambda_factor)
+            M_inv_full = 1.0 / (self.diag_R_full + self.lambda_factor)
             M_inv_free = vec_mask(M_inv_full, mask).reshape(-1)
 
             self.mask = mask
             self.U = U
             self.hvp_function = hvp_function
-            self.lambda_factor = lambda_factor
 
             d_free = self.preconditioned_conjugate_gradient(
                 rhs=rhs_free,
-                tol=pcg_tol,
-                max_iteration=pcg_iteration,
                 M_inv=M_inv_free)
 
             # Back-substitution of the solution (fixed components remain 0)
