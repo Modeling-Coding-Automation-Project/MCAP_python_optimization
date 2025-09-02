@@ -87,6 +87,9 @@ class SQP_ActiveSet_PCG_PLS:
         self.pcg_tol = pcg_tol
         self.lambda_factor = lambda_factor
 
+    def set_max_iteration(self, max_iteration: int):
+        self.max_iteration = max_iteration
+
     def hvp_free(
         self,
         p_free_flat: np.ndarray,
