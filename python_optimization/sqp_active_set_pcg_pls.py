@@ -210,10 +210,10 @@ class SQP_ActiveSet_PCG_PLS:
         """
 
         m = np.ones_like(U, dtype=bool)
+        self._active_set.clear()
         at_lower = np.zeros_like(U, dtype=bool)
         at_upper = np.zeros_like(U, dtype=bool)
 
-        it = np.nditer(U, flags=['multi_index'])
         for i in range(U.shape[0]):
             for j in range(U.shape[1]):
 
@@ -229,8 +229,10 @@ class SQP_ActiveSet_PCG_PLS:
             for j in range(U.shape[1]):
                 if at_lower[i, j] and (gradient[i, j] > gtol):
                     m[i, j] = False
+                    self._active_set.push_active(i, j)
                 if at_upper[i, j] and (gradient[i, j] < -gtol):
                     m[i, j] = False
+                    self._active_set.push_active(i, j)
 
         return m
 

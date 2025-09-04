@@ -212,3 +212,13 @@ class ActiveSet2D:
         """
         self._check_bounds(col, row)
         return bool(self._active_flags[col, row])
+
+    def clear(self):
+        """
+        Clears all active elements, resetting the active set.
+        """
+        self._active_flags = np.zeros(
+            (self.number_of_columns, self.number_of_rows), dtype=bool)
+        self._active_pairs = np.zeros(
+            (self.number_of_columns * self.number_of_rows, 2), dtype=int)
+        self._number_of_active = 0
