@@ -210,8 +210,26 @@ class SQP_ActiveSet_PCG_PLS:
         """
 
         m = np.ones_like(U, dtype=bool)
-        at_lower = np.isclose(U, umin, atol=atol)
-        at_upper = np.isclose(U, umax, atol=atol)
+        at_lower = np.zeros_like(U, dtype=bool)
+        at_upper = np.zeros_like(U, dtype=bool)
+
+        it = np.nditer(U, flags=['multi_index'])
+        for at_index_cols in range(U.shape[0]):
+            for at_index_rows in range(U.shape[1]):
+
+                if (U[at_index_cols, at_index_rows] >=
+                    (umin[at_index_cols, at_index_rows] - atol)) and \
+                        (U[at_index_cols, at_index_rows] <=
+                         (umin[at_index_cols, at_index_rows] + atol)):
+
+                    at_lower[at_index_cols, at_index_rows] = True
+
+                if (U[at_index_cols, at_index_rows] >=
+                    (umax[at_index_cols, at_index_rows] - atol)) and \
+                        (U[at_index_cols, at_index_rows] <=
+                         (umax[at_index_cols, at_index_rows] + atol)):
+
+                    at_upper[at_index_cols, at_index_rows] = True
 
         m[at_lower & (gradient > gtol)] = False
         m[at_upper & (gradient < -gtol)] = False
