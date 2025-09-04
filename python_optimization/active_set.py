@@ -104,19 +104,18 @@ class ActiveSet:
 
 class ActiveSet2D:
     """
-    2次元配列（行列）のアクティブ要素を管理するクラス。
-    各アクティブ要素は (row, col) のペアで保持します。
+    A class that manages active elements in a 2D array (matrix).
+    Each active element is represented as a (row, col) pair.
 
-    Attributes
-    ----------
+    Attributes:
     n_rows, n_cols : int
-        対象行列の行数・列数。
+        The number of rows and columns in the target matrix.
     _active_flags : np.ndarray (bool, shape=(n_rows, n_cols))
-        各要素のアクティブ状態。
+        A boolean array indicating the active state of each element.
     _active_pairs : np.ndarray (int, shape=(n_rows*n_cols, 2))
-        アクティブな (row, col) ペアを格納（未使用部分は [0, 0]）。
+        An array storing the active (row, col) pairs (unused parts are [0, 0]).
     _number_of_active : int
-        現在のアクティブ要素数。
+        The current number of active elements.
     """
 
     def __init__(self, n_rows: int, n_cols: int):
@@ -129,17 +128,25 @@ class ActiveSet2D:
         self._active_pairs = np.zeros((n_rows * n_cols, 2), dtype=int)
         self._number_of_active = 0
 
-    # ---- helpers ----
     def _check_bounds(self, row: int, col: int):
+        """
+        Checks whether the specified row and column indices are within the valid bounds of the matrix.
+        Args:
+            row (int): The row index to check.
+            col (int): The column index to check.
+        Raises:
+            IndexError: If either the row or column index is out of bounds.
+        """
+
         if not (0 <= row < self.n_rows) or not (0 <= col < self.n_cols):
             raise IndexError("Row/column index out of bounds.")
 
-    # ---- core ops ----
     def push_active(self, row: int, col: int):
         """
-        (row, col) の要素をアクティブにし、アクティブ集合に追加。
-        既にアクティブなら何もしません。
+        Activates the element at (row, col) and adds it to the active set.
+        Does nothing if it is already active.
         """
+
         self._check_bounds(row, col)
         if not self._active_flags[row, col]:
             self._active_flags[row, col] = True
@@ -148,15 +155,15 @@ class ActiveSet2D:
 
     def push_inactive(self, row: int, col: int):
         """
-        (row, col) の要素を非アクティブにし、アクティブ集合から削除。
-        既に非アクティブなら何もしません。
+        Deactivates the element at (row, col) and removes it from the active set.
+        Does nothing if it is already inactive.
         """
+
         self._check_bounds(row, col)
         if self._active_flags[row, col]:
             self._active_flags[row, col] = False
 
             found = False
-            # 見つけた位置以降を1つずつ前に詰める（1D版と同様の方針）
             for i in range(self._number_of_active):
                 if not found and (self._active_pairs[i, 0] == row and self._active_pairs[i, 1] == col):
                     found = True
@@ -167,11 +174,16 @@ class ActiveSet2D:
                 self._active_pairs[self._number_of_active - 1] = (0, 0)
                 self._number_of_active -= 1
 
-    # ---- queries ----
     def get_active(self, index: int):
         """
-        アクティブ集合の index 番目にある (row, col) を返します。
+        Returns the (row, col) pair at the specified index in the active set.
+
+        Args:
+            index (int): The index in the active set to retrieve the (row, col) pair from.
+        Returns:
+            tuple: A tuple (row, col) representing the active element at the specified index.
         """
+
         if index < 0 or index >= self._number_of_active:
             raise IndexError("Index out of bounds for active set.")
         r, c = self._active_pairs[index]
@@ -179,20 +191,20 @@ class ActiveSet2D:
 
     def get_active_pairs(self):
         """
-        全アクティブペア配列を返します（未使用部分は [0, 0] のまま）。
-        ※1D版の get_active_indices と同じ方針。
+        Returns the entire array of active (row, col) pairs (unused parts remain as [0, 0]).
+        Note: This follows the same approach as the 1D version's get_active_indices.
         """
         return self._active_pairs
 
     def get_number_of_active(self):
         """
-        現在のアクティブ要素数を返します。
+        Returns the current number of active elements.
         """
         return self._number_of_active
 
     def is_active(self, row: int, col: int):
         """
-        (row, col) がアクティブかどうかを返します。
+        Returns whether the element at (row, col) is active.
         """
         self._check_bounds(row, col)
         return bool(self._active_flags[row, col])
