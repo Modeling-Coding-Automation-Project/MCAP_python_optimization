@@ -9,6 +9,8 @@ HVP: Hessian-Vector Product
 """
 import numpy as np
 
+from python_optimization.active_set import ActiveSet2D
+
 RHS_NORM_ZERO_LIMIT_DEFAULT = 1e-12
 
 GRADIENT_NORM_ZERO_LIMIT_DEFAULT = 1e-6
@@ -87,6 +89,10 @@ class SQP_ActiveSet_PCG_PLS:
         self._diag_R_full = np.ones((U_size))
 
         self._mask = None
+        self._active_set = ActiveSet2D(
+            number_of_columns=U_size[0],
+            number_of_rows=U_size[1]
+        )
 
         self.U: np.ndarray = None
         self.X_initial: np.ndarray = None

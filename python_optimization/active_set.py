@@ -105,67 +105,71 @@ class ActiveSet:
 class ActiveSet2D:
     """
     A class that manages active elements in a 2D array (matrix).
-    Each active element is represented as a (row, col) pair.
+    Each active element is represented as a (col, row) pair.
 
     Attributes:
-    n_rows, n_cols : int
-        The number of rows and columns in the target matrix.
-    _active_flags : np.ndarray (bool, shape=(n_rows, n_cols))
+    number_of_columns, number_of_rows : int
+        The number of cols and rows in the target matrix.
+    _active_flags : np.ndarray (bool, shape=(number_of_columns, number_of_rows))
         A boolean array indicating the active state of each element.
-    _active_pairs : np.ndarray (int, shape=(n_rows*n_cols, 2))
-        An array storing the active (row, col) pairs (unused parts are [0, 0]).
+    _active_pairs : np.ndarray (int, shape=(number_of_columns*number_of_rows, 2))
+        An array storing the active (col, row) pairs (unused parts are [0, 0]).
     _number_of_active : int
         The current number of active elements.
     """
 
-    def __init__(self, n_rows: int, n_cols: int):
-        if n_rows <= 0 or n_cols <= 0:
-            raise ValueError("n_rows and n_cols must be positive.")
-        self.n_rows = n_rows
-        self.n_cols = n_cols
+    def __init__(self, number_of_columns: int, number_of_rows: int):
+        if number_of_columns <= 0 or number_of_rows <= 0:
+            raise ValueError(
+                "number_of_columns and number_of_rows must be positive.")
+        self.number_of_columns = number_of_columns
+        self.number_of_rows = number_of_rows
 
-        self._active_flags = np.zeros((n_rows, n_cols), dtype=bool)
-        self._active_pairs = np.zeros((n_rows * n_cols, 2), dtype=int)
+        self._active_flags = np.zeros(
+            (number_of_columns, number_of_rows), dtype=bool)
+        self._active_pairs = np.zeros(
+            (number_of_columns * number_of_rows, 2), dtype=int)
         self._number_of_active = 0
 
-    def _check_bounds(self, row: int, col: int):
+    def _check_bounds(self, col: int, row: int):
         """
-        Checks whether the specified row and column indices are within the valid bounds of the matrix.
+        Checks whether the specified column and row indices are
+          within the valid bounds of the matrix.
         Args:
-            row (int): The row index to check.
             col (int): The column index to check.
+            row (int): The row index to check.
         Raises:
-            IndexError: If either the row or column index is out of bounds.
+            IndexError: If either the column or row index is out of bounds.
         """
 
-        if not (0 <= row < self.n_rows) or not (0 <= col < self.n_cols):
-            raise IndexError("Row/column index out of bounds.")
+        if not (0 <= col < self.number_of_columns) or not (0 <= row < self.number_of_rows):
+            raise IndexError("Column/row index out of bounds.")
 
-    def push_active(self, row: int, col: int):
+    def push_active(self, col: int, row: int):
         """
-        Activates the element at (row, col) and adds it to the active set.
+        Activates the element at (col, row) and adds it to the active set.
         Does nothing if it is already active.
         """
 
-        self._check_bounds(row, col)
-        if not self._active_flags[row, col]:
-            self._active_flags[row, col] = True
-            self._active_pairs[self._number_of_active] = (row, col)
+        self._check_bounds(col, row)
+        if not self._active_flags[col, row]:
+            self._active_flags[col, row] = True
+            self._active_pairs[self._number_of_active] = (col, row)
             self._number_of_active += 1
 
-    def push_inactive(self, row: int, col: int):
+    def push_inactive(self, col: int, row: int):
         """
-        Deactivates the element at (row, col) and removes it from the active set.
+        Deactivates the element at (col, row) and removes it from the active set.
         Does nothing if it is already inactive.
         """
 
-        self._check_bounds(row, col)
-        if self._active_flags[row, col]:
-            self._active_flags[row, col] = False
+        self._check_bounds(col, row)
+        if self._active_flags[col, row]:
+            self._active_flags[col, row] = False
 
             found = False
             for i in range(self._number_of_active):
-                if not found and (self._active_pairs[i, 0] == row and self._active_pairs[i, 1] == col):
+                if not found and (self._active_pairs[i, 0] == col and self._active_pairs[i, 1] == row):
                     found = True
                 if found and i < self._number_of_active - 1:
                     self._active_pairs[i] = self._active_pairs[i + 1]
@@ -176,12 +180,12 @@ class ActiveSet2D:
 
     def get_active(self, index: int):
         """
-        Returns the (row, col) pair at the specified index in the active set.
+        Returns the (col, row) pair at the specified index in the active set.
 
         Args:
-            index (int): The index in the active set to retrieve the (row, col) pair from.
+            index (int): The index in the active set to retrieve the (col, row) pair from.
         Returns:
-            tuple: A tuple (row, col) representing the active element at the specified index.
+            tuple: A tuple (col, row) representing the active element at the specified index.
         """
 
         if index < 0 or index >= self._number_of_active:
@@ -191,7 +195,7 @@ class ActiveSet2D:
 
     def get_active_pairs(self):
         """
-        Returns the entire array of active (row, col) pairs (unused parts remain as [0, 0]).
+        Returns the entire array of active (col, row) pairs (unused parts remain as [0, 0]).
         Note: This follows the same approach as the 1D version's get_active_indices.
         """
         return self._active_pairs
@@ -202,9 +206,9 @@ class ActiveSet2D:
         """
         return self._number_of_active
 
-    def is_active(self, row: int, col: int):
+    def is_active(self, col: int, row: int):
         """
-        Returns whether the element at (row, col) is active.
+        Returns whether the element at (col, row) is active.
         """
-        self._check_bounds(row, col)
-        return bool(self._active_flags[row, col])
+        self._check_bounds(col, row)
+        return bool(self._active_flags[col, row])
