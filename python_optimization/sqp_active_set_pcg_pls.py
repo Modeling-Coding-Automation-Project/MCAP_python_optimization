@@ -214,25 +214,23 @@ class SQP_ActiveSet_PCG_PLS:
         at_upper = np.zeros_like(U, dtype=bool)
 
         it = np.nditer(U, flags=['multi_index'])
-        for at_index_cols in range(U.shape[0]):
-            for at_index_rows in range(U.shape[1]):
+        for i in range(U.shape[0]):
+            for j in range(U.shape[1]):
 
-                if (U[at_index_cols, at_index_rows] >=
-                    (umin[at_index_cols, at_index_rows] - atol)) and \
-                        (U[at_index_cols, at_index_rows] <=
-                         (umin[at_index_cols, at_index_rows] + atol)):
+                if (U[i, j] >= (umin[i, j] - atol)) and \
+                        (U[i, j] <= (umin[i, j] + atol)):
+                    at_lower[i, j] = True
 
-                    at_lower[at_index_cols, at_index_rows] = True
+                if (U[i, j] >= (umax[i, j] - atol)) and \
+                        (U[i, j] <= (umax[i, j] + atol)):
+                    at_upper[i, j] = True
 
-                if (U[at_index_cols, at_index_rows] >=
-                    (umax[at_index_cols, at_index_rows] - atol)) and \
-                        (U[at_index_cols, at_index_rows] <=
-                         (umax[at_index_cols, at_index_rows] + atol)):
-
-                    at_upper[at_index_cols, at_index_rows] = True
-
-        m[at_lower & (gradient > gtol)] = False
-        m[at_upper & (gradient < -gtol)] = False
+        for i in range(U.shape[0]):
+            for j in range(U.shape[1]):
+                if at_lower[i, j] and (gradient[i, j] > gtol):
+                    m[i, j] = False
+                if at_upper[i, j] and (gradient[i, j] < -gtol):
+                    m[i, j] = False
 
         return m
 
