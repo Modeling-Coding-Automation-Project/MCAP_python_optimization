@@ -59,6 +59,64 @@ def vec_unmask(
     return out
 
 
+class PreconditionedConjugateGradient:
+    def __init__(
+        self,
+        hvp_function: callable,
+        max_iteration: int = 30,
+        tol: float = 1e-4,
+        php_minus_limit: float = 1e-14,
+        rhs_norm_zero_limit: float = 1e-12,
+    ):
+        """
+        hvp_function: function v -> H v
+        """
+        self.hvp_function = hvp_function
+        self.max_iteration = max_iteration
+        self.tol = tol
+        self.php_minus_limit = php_minus_limit
+        self.rhs_norm_zero_limit = rhs_norm_zero_limit
+        self.step_iterated_number = 0
+
+    @staticmethod
+    def apply_M_inv(x: np.ndarray, M_inv=None):
+        if M_inv is None:
+            return x
+        else:
+            return x * M_inv
+
+    def solve(self, rhs: np.ndarray, M_inv=None):
+        r = rhs.copy()
+        d = np.zeros_like(rhs)
+        if np.linalg.norm(r) < self.rhs_norm_zero_limit:
+            return d
+
+        z = self.apply_M_inv(r, M_inv=M_inv)
+        p = z.copy()
+        rz = np.vdot(r, z)
+        r0 = np.linalg.norm(r)
+
+        for pcg_iteration in range(self.max_iteration):
+            Hp = self.hvp_function(p)
+            denominator = np.vdot(p, Hp)
+
+            if denominator <= self.php_minus_limit:
+                self.step_iterated_number = pcg_iteration + 1
+                break
+
+            alpha = rz / denominator
+            d += alpha * p
+            r -= alpha * Hp
+            if np.linalg.norm(r) <= self.tol * r0:
+                break
+            z = self.apply_M_inv(r, M_inv=M_inv)
+            rz_new = np.vdot(r, z)
+            beta = rz_new / rz
+            p = z + beta * p
+            rz = rz_new
+        return d
+
+
 class SQP_ActiveSet_PCG_PLS:
     def __init__(
             self,
