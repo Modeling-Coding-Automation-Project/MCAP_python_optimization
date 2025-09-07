@@ -180,9 +180,7 @@ class SQP_ActiveSet_PCG_PLS:
 
     def preconditioned_conjugate_gradient(
         self,
-        rhs: np.ndarray,
-        M_inv=None,
-        rhs_full: np.ndarray = None,
+        rhs_full: np.ndarray,
         M_inv_full=None
     ):
         """
@@ -190,79 +188,61 @@ class SQP_ActiveSet_PCG_PLS:
         hvp_function: function v -> H v
         M_inv: pre-conditioner (None or vector/function).
         """
-        d = np.zeros_like(rhs)
         d_full = np.zeros_like(rhs_full)
 
-        if np.linalg.norm(rhs) < RHS_NORM_ZERO_LIMIT_DEFAULT:
-            return d
+        if np.linalg.norm(rhs_full) < RHS_NORM_ZERO_LIMIT_DEFAULT:
+            return d_full
 
-        r = rhs.copy()
         r_full = rhs_full.copy()
 
         # Preconditioning
-        z = apply_M_inv(r, M_inv=M_inv)
         z_full = apply_M_inv_full(
             self._active_set, x=rhs_full, M_inv=M_inv_full)
 
-        p = z.copy()
         p_full = z_full.copy()
 
-        rz = np.vdot(r, z)
         rz_full = ActiveSet2D_MatrixOperator.vdot(
             r_full, z_full, self._active_set)
 
-        r0 = np.linalg.norm(r)
         r0_full = ActiveSet2D_MatrixOperator.norm(r_full, self._active_set)
 
         for pcg_iteration in range(self._pcg_max_iteration):
-            Hp = self.hvp_free(p)
             Hp_full = self.hvp_free_full(p_full)
 
-            denominator = np.vdot(p, Hp)
             denominator_full = ActiveSet2D_MatrixOperator.vdot(
                 p_full, Hp_full, self._active_set)
 
             # Simple handling of negative curvature and semi-definiteness
-            if denominator <= self._pcg_php_minus_limit:
+            if denominator_full <= self._pcg_php_minus_limit:
                 self._pcg_step_iterated_number = pcg_iteration + 1
                 break
 
-            alpha = rz / denominator
             alpha_full = rz_full / denominator_full
 
-            d += alpha * p
             d_full += ActiveSet2D_MatrixOperator.matrix_multiply_scalar(
                 p_full, alpha_full, self._active_set)
 
-            r -= alpha * Hp
             r_full -= ActiveSet2D_MatrixOperator.matrix_multiply_scalar(
                 Hp_full, alpha_full, self._active_set)
 
-            if np.linalg.norm(r) <= self._pcg_tol * r0:
-                break
             if ActiveSet2D_MatrixOperator.norm(r_full, self._active_set) <= \
                     self._pcg_tol * r0_full:
                 break
 
-            z = apply_M_inv(r, M_inv=M_inv)
             z_full = apply_M_inv_full(
                 self._active_set, x=r_full, M_inv=M_inv_full)
 
-            rz_new = np.vdot(r, z)
             rz_new_full = ActiveSet2D_MatrixOperator.vdot(
                 r_full, z_full, self._active_set)
 
-            beta = rz_new / rz
             beta_full = rz_new_full / rz_full
 
-            p = z + beta * p
             p_full = z_full + ActiveSet2D_MatrixOperator.matrix_multiply_scalar(
                 p_full, beta_full, self._active_set)
 
-            rz = rz_new
             rz_full = rz_new_full
 
-        return d
+        return d_full
 
     def free_mask(self,
                   U: np.ndarray,
@@ -326,31 +306,22 @@ class SQP_ActiveSet_PCG_PLS:
         for solver_iteration in range(self._solver_max_iteration):
             # Calculate cost and gradient
             J, gradient = cost_and_gradient_function(X_initial, U)
-            g = gradient.copy()
 
-            if np.linalg.norm(g) < self._gradient_norm_zero_limit:
+            if np.linalg.norm(gradient) < self._gradient_norm_zero_limit:
                 self._solver_step_iterated_number = solver_iteration + 1
                 break
 
-            self._mask = self.free_mask(U, g, u_min, u_max)
+            self._mask = self.free_mask(U, gradient, u_min, u_max)
 
-            rhs_free = (-vec_mask(g, self._mask)).reshape(-1)
-            rhs_full = -g
-
+            rhs_full = -gradient
             M_inv_full = 1.0 / (self._diag_R_full + self._lambda_factor)
-            M_inv_free = vec_mask(M_inv_full, self._mask).reshape(-1)
 
             self.U = U
             self.hvp_function = hvp_function
 
-            d_free = self.preconditioned_conjugate_gradient(
-                rhs=rhs_free,
-                M_inv=M_inv_free,
+            d = self.preconditioned_conjugate_gradient(
                 rhs_full=rhs_full,
                 M_inv_full=M_inv_full)
-
-            # Back-substitution of the solution (fixed components remain 0)
-            d = vec_unmask(d_free.reshape(-1), self._mask, U.shape)
 
             # line search and projection
             # (No distinction between fixed/free is needed here,
