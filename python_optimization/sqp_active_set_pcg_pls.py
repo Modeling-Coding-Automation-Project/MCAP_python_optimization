@@ -168,7 +168,8 @@ class SQP_ActiveSet_PCG_PLS:
         """
         d = np.zeros_like(rhs)
 
-        if np.linalg.norm(rhs) < RHS_NORM_ZERO_LIMIT_DEFAULT:
+        rhs_norm = ActiveSet2D_MatrixOperator.norm(rhs, self._active_set)
+        if rhs_norm < RHS_NORM_ZERO_LIMIT_DEFAULT:
             return d
 
         r = rhs.copy()
@@ -181,8 +182,6 @@ class SQP_ActiveSet_PCG_PLS:
 
         rz = ActiveSet2D_MatrixOperator.vdot(
             r, z, self._active_set)
-
-        r0 = ActiveSet2D_MatrixOperator.norm(r, self._active_set)
 
         for pcg_iteration in range(self._pcg_max_iteration):
             Hp = self.hvp_free(p)
@@ -204,7 +203,7 @@ class SQP_ActiveSet_PCG_PLS:
                 Hp, alpha, self._active_set)
 
             if ActiveSet2D_MatrixOperator.norm(r, self._active_set) <= \
-                    self._pcg_tol * r0:
+                    self._pcg_tol * rhs_norm:
                 break
 
             z = apply_M_inv(
