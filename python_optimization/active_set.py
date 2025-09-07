@@ -262,6 +262,24 @@ class ActiveSet2D_MatrixOperator:
         return total
 
     @staticmethod
+    def matrix_multiply_scalar(
+        A: np.ndarray,
+        scalar: float,
+        active_set: ActiveSet2D
+    ) -> np.ndarray:
+        """
+        Returns a matrix where only the elements registered in active_set (active pairs)
+        are multiplied by the scalar (A[i, j] * scalar). Other elements are zero.
+        Equivalent to numpy's matrix * scalar for the active elements.
+        """
+        result = np.zeros_like(A)
+
+        for idx in range(active_set.get_number_of_active()):
+            i, j = active_set.get_active(idx)
+            result[i, j] = A[i, j] * scalar
+        return result
+
+    @staticmethod
     def norm(
         A: np.ndarray,
         active_set: ActiveSet2D

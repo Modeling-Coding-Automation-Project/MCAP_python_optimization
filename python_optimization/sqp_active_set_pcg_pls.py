@@ -191,6 +191,8 @@ class SQP_ActiveSet_PCG_PLS:
         M_inv: pre-conditioner (None or vector/function).
         """
         d = np.zeros_like(rhs)
+        d_full = np.zeros_like(rhs_full)
+
         if np.linalg.norm(rhs) < RHS_NORM_ZERO_LIMIT_DEFAULT:
             return d
 
@@ -199,7 +201,8 @@ class SQP_ActiveSet_PCG_PLS:
 
         # Preconditioning
         z = apply_M_inv(r, M_inv=M_inv)
-        z_full = apply_M_inv_full(self._active_set, rhs_full, M_inv=M_inv_full)
+        z_full = apply_M_inv_full(
+            self._active_set, x=rhs_full, M_inv=M_inv_full)
 
         p = z.copy()
         p_full = z_full.copy()
@@ -225,15 +228,40 @@ class SQP_ActiveSet_PCG_PLS:
                 break
 
             alpha = rz / denominator
+            alpha_full = rz_full / denominator_full
+
             d += alpha * p
+            d_full += ActiveSet2D_MatrixOperator.matrix_multiply_scalar(
+                p_full, alpha_full, self._active_set)
+
             r -= alpha * Hp
+            r_full -= ActiveSet2D_MatrixOperator.matrix_multiply_scalar(
+                Hp_full, alpha_full, self._active_set)
+
             if np.linalg.norm(r) <= self._pcg_tol * r0:
                 break
+            if ActiveSet2D_MatrixOperator.norm(r_full, self._active_set) <= \
+                    self._pcg_tol * r0_full:
+                break
+
             z = apply_M_inv(r, M_inv=M_inv)
+            z_full = apply_M_inv_full(
+                self._active_set, x=r_full, M_inv=M_inv_full)
+
             rz_new = np.vdot(r, z)
+            rz_new_full = ActiveSet2D_MatrixOperator.vdot(
+                r_full, z_full, self._active_set)
+
             beta = rz_new / rz
+            beta_full = rz_new_full / rz_full
+
             p = z + beta * p
+            p_full = z_full + ActiveSet2D_MatrixOperator.matrix_multiply_scalar(
+                p_full, beta_full, self._active_set)
+
             rz = rz_new
+            rz_full = rz_new_full
+
         return d
 
     def free_mask(self,
