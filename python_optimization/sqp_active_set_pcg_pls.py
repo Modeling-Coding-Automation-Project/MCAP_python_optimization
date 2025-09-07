@@ -86,10 +86,12 @@ class PreconditionedConjugateGradient:
             return x * M_inv
 
     def solve(self, rhs: np.ndarray, M_inv=None):
-        r = rhs.copy()
+
         d = np.zeros_like(rhs)
-        if np.linalg.norm(r) < self.rhs_norm_zero_limit:
+        if np.linalg.norm(rhs) < self.rhs_norm_zero_limit:
             return d
+
+        r = rhs.copy()
 
         z = self.apply_M_inv(r, M_inv=M_inv)
         p = z.copy()
@@ -222,10 +224,11 @@ class SQP_ActiveSet_PCG_PLS:
         hvp_function: function v -> H v
         M_inv: pre-conditioner (None or vector/function).
         """
-        r = rhs.copy()
         d = np.zeros_like(rhs)
-        if np.linalg.norm(r) < RHS_NORM_ZERO_LIMIT_DEFAULT:
+        if np.linalg.norm(rhs) < RHS_NORM_ZERO_LIMIT_DEFAULT:
             return d
+
+        r = rhs.copy()
 
         # Preconditioning
         z = apply_M_inv(r, M_inv=M_inv)
