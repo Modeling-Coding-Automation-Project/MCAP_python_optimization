@@ -199,6 +199,7 @@ class SQP_ActiveSet_PCG_PLS:
             r_full, z_full, self._active_set)
 
         r0 = np.linalg.norm(r)
+        r0_full = ActiveSet2D_MatrixOperator.norm(r_full, self._active_set)
 
         for pcg_iteration in range(self._pcg_max_iteration):
             Hp = self.hvp_free(p)

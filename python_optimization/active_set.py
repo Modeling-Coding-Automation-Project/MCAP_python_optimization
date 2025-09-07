@@ -260,3 +260,19 @@ class ActiveSet2D_MatrixOperator:
             i, j = active_set.get_active(idx)
             total += A[i, j] * B[i, j]
         return total
+
+    @staticmethod
+    def norm(
+        A: np.ndarray,
+        active_set: ActiveSet2D
+    ) -> float:
+        """
+        Returns the Euclidean norm (2-norm) of elements
+          A[i, j] only for elements registered in active_set (active pairs).
+        Equivalent to numpy.linalg.norm for the active elements.
+        """
+        total = 0.0
+        for idx in range(active_set.get_number_of_active()):
+            i, j = active_set.get_active(idx)
+            total += A[i, j] ** 2
+        return np.sqrt(total)
