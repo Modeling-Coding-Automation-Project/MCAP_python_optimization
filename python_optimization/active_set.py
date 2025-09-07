@@ -242,3 +242,21 @@ class ActiveSet2D_MatrixOperator:
             i, j = active_set.get_active(idx)
             result[i, j] = A[i, j] * B[i, j]
         return result
+
+    @staticmethod
+    def vdot(
+        A: np.ndarray,
+        B: np.ndarray,
+        active_set: ActiveSet2D
+    ) -> float:
+        """
+        Returns the sum of products A[i, j] * B[i, j] only for
+          elements registered in active_set (active pairs).
+        Equivalent to numpy.vdot for the active elements.
+        """
+        total = 0.0
+
+        for idx in range(active_set.get_number_of_active()):
+            i, j = active_set.get_active(idx)
+            total += A[i, j] * B[i, j]
+        return total

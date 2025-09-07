@@ -185,13 +185,19 @@ class SQP_ActiveSet_PCG_PLS:
             return d
 
         r = rhs.copy()
+        r_full = rhs_full.copy()
 
         # Preconditioning
         z = apply_M_inv(r, M_inv=M_inv)
         z_full = apply_M_inv_full(self._active_set, rhs_full, M_inv=M_inv_full)
 
         p = z.copy()
+        p_full = z_full.copy()
+
         rz = np.vdot(r, z)
+        rz_full = ActiveSet2D_MatrixOperator.vdot(
+            r_full, z_full, self._active_set)
+
         r0 = np.linalg.norm(r)
 
         for pcg_iteration in range(self._pcg_max_iteration):
