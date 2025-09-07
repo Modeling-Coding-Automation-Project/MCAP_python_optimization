@@ -222,3 +222,23 @@ class ActiveSet2D:
         self._active_pairs = np.zeros(
             (self.number_of_columns * self.number_of_rows, 2), dtype=int)
         self._number_of_active = 0
+
+
+class ActiveSet2D_MatrixOperator:
+    @staticmethod
+    def element_wise_product(
+        A: np.ndarray,
+        B: np.ndarray,
+        active_set: ActiveSet2D
+    ) -> np.ndarray:
+        """
+        Returns a matrix where only the elements registered in
+          active_set (active pairs) are the product A[i, j] * B[i, j].
+        Other elements are zero.
+        """
+        result = np.zeros_like(A)
+
+        for idx in range(active_set.get_number_of_active()):
+            i, j = active_set.get_active(idx)
+            result[i, j] = A[i, j] * B[i, j]
+        return result

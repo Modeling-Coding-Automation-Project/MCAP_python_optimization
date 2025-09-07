@@ -10,6 +10,7 @@ HVP: Hessian-Vector Product
 import numpy as np
 
 from python_optimization.active_set import ActiveSet2D
+from python_optimization.active_set import ActiveSet2D_MatrixOperator
 
 RHS_NORM_ZERO_LIMIT_DEFAULT = 1e-12
 
@@ -40,6 +41,18 @@ def apply_M_inv(
         return x
     else:
         return x * M_inv
+
+
+def apply_M_inv_full(
+        active_set: ActiveSet2D,
+        x: np.ndarray,
+        M_inv=None):
+
+    if M_inv is None:
+        return x
+    else:
+        return ActiveSet2D_MatrixOperator.element_wise_product(
+            x, M_inv, active_set)
 
 
 def vec_mask(
@@ -156,9 +169,12 @@ class SQP_ActiveSet_PCG_PLS:
         return vec_mask(Hv_full, self._mask).reshape(-1)
 
     def preconditioned_conjugate_gradient(
-            self,
-            rhs: np.ndarray,
-            M_inv=None):
+        self,
+        rhs: np.ndarray,
+        M_inv=None,
+        rhs_full: np.ndarray = None,
+        M_inv_full=None
+    ):
         """
         Solve the system hvp_function(d) = rhs using PCG without matrix.
         hvp_function: function v -> H v
@@ -172,6 +188,8 @@ class SQP_ActiveSet_PCG_PLS:
 
         # Preconditioning
         z = apply_M_inv(r, M_inv=M_inv)
+        z_full = apply_M_inv_full(self._active_set, rhs_full, M_inv=M_inv_full)
+
         p = z.copy()
         rz = np.vdot(r, z)
         r0 = np.linalg.norm(r)
@@ -228,11 +246,10 @@ class SQP_ActiveSet_PCG_PLS:
 
         for i in range(U.shape[0]):
             for j in range(U.shape[1]):
-                if at_lower[i, j] and (gradient[i, j] > gtol):
+                if (at_lower[i, j] and (gradient[i, j] > gtol)) or \
+                        (at_upper[i, j] and (gradient[i, j] < -gtol)):
                     m[i, j] = False
-                    self._active_set.push_active(i, j)
-                if at_upper[i, j] and (gradient[i, j] < -gtol):
-                    m[i, j] = False
+                else:
                     self._active_set.push_active(i, j)
 
         return m
@@ -269,6 +286,7 @@ class SQP_ActiveSet_PCG_PLS:
             self._mask = self.free_mask(U, g, u_min, u_max)
 
             rhs_free = (-vec_mask(g, self._mask)).reshape(-1)
+            rhs_full = -g
 
             M_inv_full = 1.0 / (self._diag_R_full + self._lambda_factor)
             M_inv_free = vec_mask(M_inv_full, self._mask).reshape(-1)
@@ -278,7 +296,9 @@ class SQP_ActiveSet_PCG_PLS:
 
             d_free = self.preconditioned_conjugate_gradient(
                 rhs=rhs_free,
-                M_inv=M_inv_free)
+                M_inv=M_inv_free,
+                rhs_full=rhs_full,
+                M_inv_full=M_inv_full)
 
             # Back-substitution of the solution (fixed components remain 0)
             d = vec_unmask(d_free.reshape(-1), self._mask, U.shape)
