@@ -308,7 +308,14 @@ class SQP_ActiveSet_PCG_PLS:
 
             for line_search_iteration in range(self._line_search_max_iteration):
                 U_candidate = U + alpha * d
-                U_candidate = np.minimum(np.maximum(U_candidate, u_min), u_max)
+
+                for i in range(U_candidate.shape[0]):
+                    for j in range(U_candidate.shape[1]):
+                        if U_candidate[i, j] < u_min[i, j]:
+                            U_candidate[i, j] = u_min[i, j]
+                        elif U_candidate[i, j] > u_max[i, j]:
+                            U_candidate[i, j] = u_max[i, j]
+
                 J_candidate, _ = cost_and_gradient_function(
                     X_initial, U_candidate)
 
