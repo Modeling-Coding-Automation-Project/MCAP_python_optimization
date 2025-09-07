@@ -159,14 +159,24 @@ class SQP_ActiveSet_PCG_PLS:
     # functions
     def hvp_free(
         self,
-        p_free_flat: np.ndarray,
+        p_free_flat: np.ndarray
     ):
         P = vec_unmask(p_free_flat, self._mask,
                        self.U.shape).reshape(self.U.shape)
+
         Hv_full = self.hvp_function(self.X_initial, self.U, P)
         Hv_full += self._lambda_factor * P
 
         return vec_mask(Hv_full, self._mask).reshape(-1)
+
+    def hvp_free_full(
+        self,
+        P_in: np.ndarray
+    ):
+        Hv_full = self.hvp_function(self.X_initial, self.U, P_in)
+        Hv_full += self._lambda_factor * P_in
+
+        return Hv_full
 
     def preconditioned_conjugate_gradient(
         self,
@@ -203,7 +213,11 @@ class SQP_ActiveSet_PCG_PLS:
 
         for pcg_iteration in range(self._pcg_max_iteration):
             Hp = self.hvp_free(p)
+            Hp_full = self.hvp_free_full(p_full)
+
             denominator = np.vdot(p, Hp)
+            denominator_full = ActiveSet2D_MatrixOperator.vdot(
+                p_full, Hp_full, self._active_set)
 
             # Simple handling of negative curvature and semi-definiteness
             if denominator <= self._pcg_php_minus_limit:
