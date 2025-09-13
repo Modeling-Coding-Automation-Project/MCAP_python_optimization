@@ -89,20 +89,6 @@ sqp_cost_matrices = SQP_CostMatrices_NMPC(
 )
 
 
-def state_equation(x, u):
-    theta, omega = x
-    u0 = u[0]
-    theta_next = theta + dt * omega
-    omega_dot = -a * np.sin(theta) - b * omega + c * \
-        np.cos(theta) * u0 + d * (u0 ** 2)
-    omega_next = omega + dt * omega_dot
-    return np.array([theta_next, omega_next])
-
-
-def measurement_equation(x):
-    return x[0]
-
-
 def state_equation_jacobians(x, u):
     theta, omega = x
     u0 = u[0]
@@ -146,7 +132,8 @@ def compute_cost_and_gradient(
     X = simulate_trajectory(X_initial, U)
     Y = np.zeros((X.shape[0], Qy.shape[0]))
     for k in range(X.shape[0]):
-        Y[k] = measurement_equation(X[k]).reshape(-1, 1)
+        Y[k] = sqp_cost_matrices.calculate_measurement_function(
+            X[k], state_space_parameters)
 
     J = 0.0
     for k in range(N):
@@ -182,8 +169,10 @@ def hvp_analytic(X_initial, U, V):
     X = simulate_trajectory(X_initial, U)
     Y = np.zeros((X.shape[0], Qy.shape[0]))
     for k in range(X.shape[0]):
-        Y[k] = measurement_equation(X[k]).reshape(-1, 1)
-    yN = measurement_equation(X[N])
+        Y[k] = sqp_cost_matrices.calculate_measurement_function(
+            X[k], state_space_parameters)
+    yN = sqp_cost_matrices.calculate_measurement_function(
+        X[N], state_space_parameters)
 
     eN_y = yN - reference_trajectory[N]
 

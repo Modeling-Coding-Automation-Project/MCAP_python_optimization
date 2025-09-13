@@ -412,6 +412,19 @@ class SQP_CostMatrices_NMPC:
 
         return X_next.reshape((self.nx,))
 
+    def calculate_measurement_function(
+            self,
+            X: np.ndarray,
+            Parameters
+    ) -> np.ndarray:
+
+        X = X.reshape((self.nx, 1))
+        U = np.zeros((self.nu, 1))
+
+        Y = self.measurement_function_code_file_function(X, U, Parameters)
+
+        return Y.reshape((self.ny,))
+
     def fx_xx_lambda_contract(
             self,
             X: np.ndarray,
