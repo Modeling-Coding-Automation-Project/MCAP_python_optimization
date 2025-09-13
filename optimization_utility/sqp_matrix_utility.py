@@ -1,7 +1,16 @@
+import os
+import inspect
 import numpy as np
 import sympy as sp
 
+from external_libraries.MCAP_python_control.python_control.control_deploy import ControlDeploy
 from external_libraries.MCAP_python_control.python_control.control_deploy import ExpressionDeploy
+
+HESSIAN_HF_XX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hf_xx.py"
+HESSIAN_HF_XU_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hf_xu.py"
+HESSIAN_HF_UX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hf_ux.py"
+HESSIAN_HF_UU_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hf_uu.py"
+HESSIAN_HH_XX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hh_xx.py"
 
 
 def extract_parameters_from_state_equations(
@@ -65,8 +74,27 @@ class SQP_CostMatrices_NMPC:
             Qy: np.ndarray,
             R: np.ndarray,
             Px: np.ndarray = None,
-            Py: np.ndarray = None
+            Py: np.ndarray = None,
+            caller_file_name: str = None
     ):
+        if caller_file_name is None:
+            # % inspect arguments
+            # Get the caller's frame
+            frame = inspect.currentframe().f_back
+            # Get the caller's local variables
+            caller_locals = frame.f_locals
+            for _, value in caller_locals.items():
+                if value is x_syms:
+                    break
+            # Get the caller's file name
+            caller_file_full_path = frame.f_code.co_filename
+            caller_file_name = os.path.basename(caller_file_full_path)
+            caller_file_name_without_ext = os.path.splitext(caller_file_name)[
+                0]
+        else:
+            caller_file_name_without_ext = os.path.splitext(caller_file_name)[
+                0]
+
         self.x_syms = x_syms
         self.u_syms = u_syms
         self.f = state_equation_vector
@@ -99,11 +127,12 @@ class SQP_CostMatrices_NMPC:
             self.Py = Py
 
         # Precompute Hessians
-        self.Hf_xx_list, self.Hf_xu_list, self.Hf_ux_list, self.Hf_uu_list = \
+        self.Hf_xx_matrix, self.Hf_xu_matrix, self.Hf_ux_matrix, self.Hf_uu_matrix = \
             self._stack_hessians_for_f()
-        self.Hh_xx_list = self._stack_hessians_for_h()
+        self.Hh_xx_matrix = self._stack_hessians_for_h()
 
-        self.create_numpy_function_from_sympy()
+        self.create_hessian_numpy_code(
+            file_name_without_ext=caller_file_name_without_ext)
 
     def _stack_hessians_for_f(self):
         """
@@ -116,10 +145,10 @@ class SQP_CostMatrices_NMPC:
         nx = len(self.x_syms)
         nu = len(self.u_syms)
 
-        Hf_xx_list = []
-        Hf_xu_list = []
-        Hf_ux_list = []
-        Hf_uu_list = []
+        Hf_xx_matrix = sp.zeros(self.nx * self.nx, self.nx)
+        Hf_xu_matrix = sp.zeros(self.nx * self.nx, self.nu)
+        Hf_ux_matrix = sp.zeros(self.nx * self.nu, self.nx)
+        Hf_uu_matrix = sp.zeros(self.nx * self.nu, self.nu)
 
         for i in range(nx):
             fi = self.f[i, 0]
@@ -137,12 +166,12 @@ class SQP_CostMatrices_NMPC:
                 Hxu = sp.Matrix(np.zeros((nx, 0)))
                 Hux = sp.Matrix(np.zeros((0, nx)))
 
-            Hf_xx_list.append(Hxx)
-            Hf_xu_list.append(Hxu)
-            Hf_ux_list.append(Hux)
-            Hf_uu_list.append(Huu)
+            Hf_xx_matrix[i * nx:(i + 1) * nx, :] = Hxx
+            Hf_xu_matrix[i * nx:(i + 1) * nx, :] = Hxu
+            Hf_ux_matrix[i * nu:(i + 1) * nu, :] = Hux
+            Hf_uu_matrix[i * nu:(i + 1) * nu, :] = Huu
 
-        return Hf_xx_list, Hf_xu_list, Hf_ux_list, Hf_uu_list
+        return Hf_xx_matrix, Hf_xu_matrix, Hf_ux_matrix, Hf_uu_matrix
 
     def _stack_hessians_for_h(self):
         """
@@ -150,16 +179,81 @@ class SQP_CostMatrices_NMPC:
         Hh_xx: Array shape (ny, nx, nx)
         """
         ny = self.h.shape[0]
-        Hh_xx_list = []
+        Hh_xx_matrix = sp.zeros(self.ny * self.nx, self.nx)
+
         for j in range(ny):
             hj = self.h[j, 0]
             Hxx = sp.hessian(hj, self.x_syms)  # (nx, nx)
-            Hh_xx_list.append(Hxx)
 
-        return Hh_xx_list
+            Hh_xx_matrix[j * self.nx:(j + 1) * self.nx, :] = Hxx
 
-    def create_numpy_function_from_sympy(self):
+        return Hh_xx_matrix
 
-        a = self.Hf_xx_list[1]
+    def create_hessian_numpy_code(
+            self, file_name_without_ext: str = None):
 
-        ExpressionDeploy.create_sympy_code(a)
+        hf_xx_code_file_name = HESSIAN_HF_XX_NUMPY_CODE_FILE_NAME_SUFFIX
+        hf_xu_code_file_name = HESSIAN_HF_XU_NUMPY_CODE_FILE_NAME_SUFFIX
+        hf_ux_code_file_name = HESSIAN_HF_UX_NUMPY_CODE_FILE_NAME_SUFFIX
+        hf_uu_code_file_name = HESSIAN_HF_UU_NUMPY_CODE_FILE_NAME_SUFFIX
+        hh_xx_code_file_name = HESSIAN_HH_XX_NUMPY_CODE_FILE_NAME_SUFFIX
+
+        if file_name_without_ext is not None:
+            hf_xx_code_file_name = file_name_without_ext + \
+                "_" + hf_xx_code_file_name
+            hf_xu_code_file_name = file_name_without_ext + \
+                "_" + hf_xu_code_file_name
+            hf_ux_code_file_name = file_name_without_ext + \
+                "_" + hf_ux_code_file_name
+            hf_uu_code_file_name = file_name_without_ext + \
+                "_" + hf_uu_code_file_name
+            hh_xx_code_file_name = file_name_without_ext + \
+                "_" + hh_xx_code_file_name
+
+        # write code
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.Hf_xx_matrix,
+            sym_object_name=os.path.splitext(hf_xx_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.Hf_xu_matrix,
+            sym_object_name=os.path.splitext(hf_xu_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.Hf_ux_matrix,
+            sym_object_name=os.path.splitext(hf_ux_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.Hf_uu_matrix,
+            sym_object_name=os.path.splitext(hf_uu_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.Hh_xx_matrix,
+            sym_object_name=os.path.splitext(hh_xx_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        return hf_xx_code_file_name, \
+            hf_xu_code_file_name, \
+            hf_ux_code_file_name, \
+            hf_uu_code_file_name, \
+            hh_xx_code_file_name
+
+
+# nx = Hf_xx_numpy.shape[1]          # 状態次元
+# out = np.zeros(nx, dtype=float)    # 結果ベクトル (nx,)
+
+# for i in range(nx):                # f_i の添字
+#     for j in range(nx):            # 出力成分の添字
+#         acc = 0.0
+#         for k in range(nx):        # dx を掛ける列の添字
+#             acc += Hf_xx_numpy[i, j, k] * dx[k]
+#         out[j] += lam_next[i] * acc
