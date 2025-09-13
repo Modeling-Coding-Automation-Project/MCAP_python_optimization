@@ -425,6 +425,34 @@ class SQP_CostMatrices_NMPC:
 
         return Y.reshape((self.ny,))
 
+    def calculate_state_jacobian_x(
+            self,
+            X: np.ndarray,
+            U: np.ndarray,
+            Parameters
+    ) -> np.ndarray:
+
+        X = X.reshape((self.nx, 1))
+        U = U.reshape((self.nu, 1))
+
+        A = self.state_jacobian_x_code_file_function(X, U, Parameters)
+
+        return A.reshape((self.nx, self.nx))
+
+    def calculate_state_jacobian_u(
+            self,
+            X: np.ndarray,
+            U: np.ndarray,
+            Parameters
+    ) -> np.ndarray:
+
+        X = X.reshape((self.nx, 1))
+        U = U.reshape((self.nu, 1))
+
+        B = self.state_jacobian_u_code_file_function(X, U, Parameters)
+
+        return B.reshape((self.nx, self.nu))
+
     def fx_xx_lambda_contract(
             self,
             X: np.ndarray,

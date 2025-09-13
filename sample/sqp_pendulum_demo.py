@@ -89,26 +89,6 @@ sqp_cost_matrices = SQP_CostMatrices_NMPC(
 )
 
 
-def state_equation_jacobians(x, u):
-    theta, omega = x
-    u0 = u[0]
-
-    # df/dx
-    A = np.eye(nx)
-    A[0, 1] = dt
-    domega_dot_dtheta = -a * np.cos(theta) - c * np.sin(theta) * u0
-    domega_dot_domega = -b
-    A[1, 0] = dt * domega_dot_dtheta
-    A[1, 1] = 1.0 + dt * domega_dot_domega
-
-    # df/du
-    B = np.zeros((nx, nu))
-    domega_dot_du = c * np.cos(theta) + 2.0 * d * u0
-    B[1, 0] = dt * domega_dot_du
-
-    return A, B
-
-
 def measurement_equation_jacobian(x):
     return np.array([[1.0, 0.0]])
 
@@ -152,11 +132,14 @@ def compute_cost_and_gradient(
         Cx_k = measurement_equation_jacobian(X[k])
         ek_y = Y[k] - reference_trajectory[k]
 
-        Ak, B_k = state_equation_jacobians(X[k], U[k])
+        A_k = sqp_cost_matrices.calculate_state_jacobian_x(
+            X[k], U[k], state_space_parameters)
+        B_k = sqp_cost_matrices.calculate_state_jacobian_u(
+            X[k], U[k], state_space_parameters)
 
         grad[k] = 2 * R @ U[k] + B_k.T @ lam_next
 
-        lam_next = 2 * Qx @ X[k] + 2 * Cx_k.T @ (Qy @ ek_y) + Ak.T @ lam_next
+        lam_next = 2 * Qx @ X[k] + 2 * Cx_k.T @ (Qy @ ek_y) + A_k.T @ lam_next
 
     return J, grad
 
@@ -182,7 +165,8 @@ def hvp_analytic(X_initial, U, V):
     lam[N] = 2 * Px @ X[N]
 
     for k in range(N - 1, -1, -1):
-        A_k, _ = state_equation_jacobians(X[k], U[k])
+        A_k = sqp_cost_matrices.calculate_state_jacobian_x(
+            X[k], U[k], state_space_parameters)
         Cx_k = measurement_equation_jacobian(X[k])
         ek_y = Y[k] - reference_trajectory[k]
         lam[k] = 2 * Qx @ X[k] + Cx_k.T @ (2 * Qy @ ek_y) + \
@@ -191,7 +175,10 @@ def hvp_analytic(X_initial, U, V):
     # --- 3) forward directional state: delta_x ---
     dx = np.zeros((N + 1, nx))
     for k in range(N):
-        A_k, B_k = state_equation_jacobians(X[k], U[k])
+        A_k = sqp_cost_matrices.calculate_state_jacobian_x(
+            X[k], U[k], state_space_parameters)
+        B_k = sqp_cost_matrices.calculate_state_jacobian_u(
+            X[k], U[k], state_space_parameters)
         dx[k + 1] = A_k @ dx[k] + B_k @ V[k]
 
     # --- 4) backward second-order adjoint ---
@@ -206,7 +193,10 @@ def hvp_analytic(X_initial, U, V):
 
     Hu = np.zeros_like(U)
     for k in range(N - 1, -1, -1):
-        A_k, B_k = state_equation_jacobians(X[k], U[k])
+        A_k = sqp_cost_matrices.calculate_state_jacobian_x(
+            X[k], U[k], state_space_parameters)
+        B_k = sqp_cost_matrices.calculate_state_jacobian_u(
+            X[k], U[k], state_space_parameters)
         Cx_k = measurement_equation_jacobian(X[k])
         ek_y = Y[k] - reference_trajectory[k]
 
