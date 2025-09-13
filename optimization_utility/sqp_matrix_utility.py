@@ -2,11 +2,60 @@ import numpy as np
 import sympy as sp
 
 
+def extract_parameters_from_state_equations(
+        f: sp.Matrix,
+        h: sp.Matrix,
+        x_syms: sp.Matrix,
+        u_syms: sp.Matrix
+):
+    # Helper to collect free symbols from a sympy Matrix/Array
+    def _collect_free_symbols(expr_matrix):
+        syms = set()
+        # expr_matrix can be a Matrix, Array, or other iterable of exprs
+        try:
+            iterator = list(expr_matrix)
+        except Exception:
+            iterator = [expr_matrix]
+
+        for elem in iterator:
+            # if it's a matrix/array nested, iterate through its entries
+            if hasattr(elem, '__iter__') and not isinstance(elem, sp.Symbol):
+                for sub in elem:
+                    try:
+                        syms.update(sub.free_symbols)
+                    except Exception:
+                        pass
+            else:
+                try:
+                    syms.update(elem.free_symbols)
+                except Exception:
+                    pass
+        return syms
+
+    f_syms = _collect_free_symbols(f)
+    h_syms = _collect_free_symbols(h)
+
+    # Symbols that are considered states/inputs
+    x_syms_set = set(x_syms)
+    u_syms_set = set(u_syms)
+
+    # Parameters are free symbols in f or h but not in x_syms or u_syms
+    params = (f_syms | h_syms) - x_syms_set - u_syms_set
+
+    # Return a sorted list for deterministic order
+    try:
+        sorted_params = sorted(params, key=lambda s: s.name)
+    except Exception:
+        sorted_params = list(params)
+
+    return sorted_params
+
+
 class SQP_CostMatrices_NMPC:
     def __init__(
             self,
-            x_syms: list,
-            u_syms: list,
+            x_syms: sp.Matrix,
+            u_syms: sp.Matrix,
             state_equation_vector: sp.Matrix,
             measurement_equation_vector: sp.Matrix,
             Np: int,
@@ -20,6 +69,13 @@ class SQP_CostMatrices_NMPC:
         self.u_syms = u_syms
         self.f = state_equation_vector
         self.h = measurement_equation_vector
+
+        self.Parameters = extract_parameters_from_state_equations(
+            f=self.f,
+            h=self.h,
+            x_syms=self.x_syms,
+            u_syms=self.u_syms
+        )
 
         self.nx = Qx.shape[0]
         self.nu = R.shape[0]

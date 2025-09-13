@@ -30,8 +30,8 @@ def create_plant_model():
     f = sp.Matrix([theta_next, omega_next])
     h = sp.Matrix([[theta]])
 
-    x_syms = [theta, omega]
-    u_syms = [u0]
+    x_syms = sp.Matrix([[theta], [omega]])
+    u_syms = sp.Matrix([[u0]])
 
     return f, h, x_syms, u_syms
 
