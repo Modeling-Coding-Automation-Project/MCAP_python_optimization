@@ -6,11 +6,18 @@ import sympy as sp
 from external_libraries.MCAP_python_control.python_control.control_deploy import ControlDeploy
 from external_libraries.MCAP_python_control.python_control.control_deploy import ExpressionDeploy
 
-HESSIAN_HF_XX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hf_xx.py"
-HESSIAN_HF_XU_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hf_xu.py"
-HESSIAN_HF_UX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hf_ux.py"
-HESSIAN_HF_UU_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hf_uu.py"
-HESSIAN_HH_XX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hh_xx.py"
+STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_state_function.py"
+MEASUREMENT_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_measurement_function.py"
+
+STATE_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_state_jacobian_x.py"
+STATE_JACOBIAN_U_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_state_jacobian_u.py"
+MEASUREMENT_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_measurement_jacobian_x.py"
+
+HESSIAN_F_XX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hessian_f_xx.py"
+HESSIAN_F_XU_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hessian_f_xu.py"
+HESSIAN_F_UX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hessian_f_ux.py"
+HESSIAN_F_UU_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hessian_f_uu.py"
+HESSIAN_H_XX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hessian_h_xx.py"
 
 
 def extract_parameters_from_state_equations(
@@ -126,10 +133,27 @@ class SQP_CostMatrices_NMPC:
         else:
             self.Py = Py
 
+        # Precompute Jacobians
+        self.A_matrix = self.f.jacobian(self.x_syms)  # df/dx
+        self.B_matrix = self.f.jacobian(self.u_syms)  # df/du
+        self.C_matrix = self.h.jacobian(self.x_syms)  # dh/dx
+
         # Precompute Hessians
         self.Hf_xx_matrix, self.Hf_xu_matrix, self.Hf_ux_matrix, self.Hf_uu_matrix = \
             self._stack_hessians_for_f()
         self.Hh_xx_matrix = self._stack_hessians_for_h()
+
+        # create code files
+        self.state_function_code_file_name, \
+            self.measurement_function_code_file_name = \
+            self.create_state_measurement_equation_numpy_code(
+                file_name_without_ext=caller_file_name_without_ext)
+
+        self.state_jacobian_x_code_file_name, \
+            self.state_jacobian_u_code_file_name, \
+            self.measurement_jacobian_x_code_file_name = \
+            self.create_jacobians_numpy_code(
+                file_name_without_ext=caller_file_name_without_ext)
 
         self.hf_xx_code_file_name, \
             self.hf_xu_code_file_name, \
@@ -138,6 +162,75 @@ class SQP_CostMatrices_NMPC:
             self.hh_xx_code_file_name = \
             self.create_hessian_numpy_code(
                 file_name_without_ext=caller_file_name_without_ext)
+
+    def create_state_measurement_equation_numpy_code(
+            self, file_name_without_ext: str = None):
+        state_function_code_file_name = STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
+        measurement_function_code_file_name = MEASUREMENT_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
+
+        if file_name_without_ext is not None:
+            state_function_code_file_name = file_name_without_ext + \
+                "_" + state_function_code_file_name
+            measurement_function_code_file_name = file_name_without_ext + \
+                "_" + measurement_function_code_file_name
+
+        # write code
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.f,
+            sym_object_name=os.path.splitext(state_function_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.h,
+            sym_object_name=os.path.splitext(
+                measurement_function_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        return state_function_code_file_name, \
+            measurement_function_code_file_name
+
+    def create_jacobians_numpy_code(
+            self, file_name_without_ext: str = None):
+
+        state_jacobian_x_code_file_name = STATE_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX
+        state_jacobian_u_code_file_name = STATE_JACOBIAN_U_NUMPY_CODE_FILE_NAME_SUFFIX
+        measurement_jacobian_x_code_file_name = MEASUREMENT_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX
+
+        if file_name_without_ext is not None:
+            state_jacobian_x_code_file_name = file_name_without_ext + \
+                "_" + state_jacobian_x_code_file_name
+            state_jacobian_u_code_file_name = file_name_without_ext + \
+                "_" + state_jacobian_u_code_file_name
+            measurement_jacobian_x_code_file_name = file_name_without_ext + \
+                "_" + measurement_jacobian_x_code_file_name
+
+        # write code
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.A_matrix,
+            sym_object_name=os.path.splitext(
+                state_jacobian_x_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.B_matrix,
+            sym_object_name=os.path.splitext(
+                state_jacobian_u_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        ExpressionDeploy.write_function_code_from_sympy(
+            sym_object=self.C_matrix,
+            sym_object_name=os.path.splitext(
+                measurement_jacobian_x_code_file_name)[0],
+            X=self.x_syms, U=self.u_syms
+        )
+
+        return state_jacobian_x_code_file_name, \
+            state_jacobian_u_code_file_name, \
+            measurement_jacobian_x_code_file_name
 
     def _stack_hessians_for_f(self):
         """
@@ -197,11 +290,11 @@ class SQP_CostMatrices_NMPC:
     def create_hessian_numpy_code(
             self, file_name_without_ext: str = None):
 
-        hf_xx_code_file_name = HESSIAN_HF_XX_NUMPY_CODE_FILE_NAME_SUFFIX
-        hf_xu_code_file_name = HESSIAN_HF_XU_NUMPY_CODE_FILE_NAME_SUFFIX
-        hf_ux_code_file_name = HESSIAN_HF_UX_NUMPY_CODE_FILE_NAME_SUFFIX
-        hf_uu_code_file_name = HESSIAN_HF_UU_NUMPY_CODE_FILE_NAME_SUFFIX
-        hh_xx_code_file_name = HESSIAN_HH_XX_NUMPY_CODE_FILE_NAME_SUFFIX
+        hf_xx_code_file_name = HESSIAN_F_XX_NUMPY_CODE_FILE_NAME_SUFFIX
+        hf_xu_code_file_name = HESSIAN_F_XU_NUMPY_CODE_FILE_NAME_SUFFIX
+        hf_ux_code_file_name = HESSIAN_F_UX_NUMPY_CODE_FILE_NAME_SUFFIX
+        hf_uu_code_file_name = HESSIAN_F_UU_NUMPY_CODE_FILE_NAME_SUFFIX
+        hh_xx_code_file_name = HESSIAN_H_XX_NUMPY_CODE_FILE_NAME_SUFFIX
 
         if file_name_without_ext is not None:
             hf_xx_code_file_name = file_name_without_ext + \
