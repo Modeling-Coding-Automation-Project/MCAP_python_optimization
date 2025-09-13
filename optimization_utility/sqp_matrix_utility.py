@@ -131,8 +131,13 @@ class SQP_CostMatrices_NMPC:
             self._stack_hessians_for_f()
         self.Hh_xx_matrix = self._stack_hessians_for_h()
 
-        self.create_hessian_numpy_code(
-            file_name_without_ext=caller_file_name_without_ext)
+        self.hf_xx_code_file_name, \
+            self.hf_xu_code_file_name, \
+            self.hf_ux_code_file_name, \
+            self.hf_uu_code_file_name, \
+            self.hh_xx_code_file_name = \
+            self.create_hessian_numpy_code(
+                file_name_without_ext=caller_file_name_without_ext)
 
     def _stack_hessians_for_f(self):
         """
