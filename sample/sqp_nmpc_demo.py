@@ -1,3 +1,12 @@
+"""
+File: sqp_nmpc_demo.py
+
+A sample code for Nonlinear Model Predictive Control (NMPC) using
+Sequential Quadratic Programming (SQP) with Active-Set method,
+Preconditioned Conjugate Gradient (PCG), and Projected Line Search (PLS).
+
+Plant: 2-Mass Spring-Damper System
+"""
 import os
 import sys
 sys.path.append(os.getcwd())

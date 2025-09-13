@@ -1,3 +1,12 @@
+"""
+File: sqp_pendulum_demo.py
+
+A sample code for Nonlinear Model Predictive Control (NMPC) using
+Sequential Quadratic Programming (SQP) with Active-Set method,
+Preconditioned Conjugate Gradient (PCG), and Projected Line Search (PLS).
+
+Plant: Pendulum-like system with nonlinear actuator dynamics
+"""
 import os
 import sys
 sys.path.append(os.getcwd())
@@ -18,15 +27,6 @@ a = 9.81     # gravity/l over I scaling
 b = 0.3      # damping
 c = 1.2      # state-dependent control effectiveness: cos(theta)*u
 d = 0.10     # actuator nonlinearity: u^2
-
-# cost weights
-Q = np.diag([5.0, 0.5])
-R = np.diag([0.05])
-P = Q.copy()
-
-# input bounds
-u_min = np.array([-2.0])
-u_max = np.array([2.0])
 
 
 def plant_dynamics(x, u):
@@ -210,6 +210,14 @@ def hvp_analytic(X_initial, U, V):
 
 # --- Example Execution ---
 
+# cost weights
+Q = np.diag([5.0, 0.5])
+R = np.diag([0.05])
+P = Q.copy()
+
+# input bounds
+u_min = np.array([-2.0])
+u_max = np.array([2.0])
 
 # initial state: start near inverted position to engage nonlinearity
 X_initial = np.array([np.pi / 4.0, 0.0])
