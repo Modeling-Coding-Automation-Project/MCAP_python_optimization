@@ -298,8 +298,8 @@ def hvp_analytic(X_initial, U, V):
         # dlambda_k
         term_xx = sqp_cost_matrices.fx_xx_lambda_contract(
             X[k], U[k], state_space_parameters, lam[k + 1], dx[k])
-
-        term_xu = fx_xu_lambda_contract(X[k], U[k], lam[k + 1], V[k])
+        term_xu = sqp_cost_matrices.fx_xu_lambda_contract(
+            X[k], U[k], state_space_parameters, lam[k + 1], V[k])
 
         d_lambda[k] = (
             l_xx(X[k], U[k]) @ dx[k] +

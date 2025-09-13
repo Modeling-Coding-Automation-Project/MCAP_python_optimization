@@ -423,3 +423,32 @@ class SQP_CostMatrices_NMPC:
                 out[j] += lam_next[i] * acc
 
         return out
+
+    def fx_xu_lambda_contract(
+            self,
+            X: np.ndarray,
+            U: np.ndarray,
+            Parameters,
+            lam_next: np.ndarray,
+            dU: np.ndarray
+    ) -> np.ndarray:
+
+        X = X.reshape((self.nx, 1))
+        U = U.reshape((self.nu, 1))
+
+        out = np.zeros(self.nx, dtype=float)
+
+        Hf_xu = self.hf_xu_code_file_function(
+            X, U, Parameters)
+
+        if self.nu == 0:
+            pass
+        else:
+            for i in range(self.nx):
+                for j in range(self.nx):
+                    acc = 0.0
+                    for k in range(self.nu):
+                        acc += Hf_xu[i * self.nx + j, k] * dU[k]
+                    out[j] += lam_next[i] * acc
+
+        return out
