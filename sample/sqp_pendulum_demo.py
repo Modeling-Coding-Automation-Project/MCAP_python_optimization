@@ -18,6 +18,7 @@ from python_optimization.sqp_active_set_pcg_pls import SQP_ActiveSet_PCG_PLS
 
 nx = 2   # [theta, omega]
 nu = 1   # scalar input
+ny = 1   # scalar output (theta)
 N = 20   # horizon
 
 dt = 0.05
@@ -30,7 +31,7 @@ d = 0.10     # actuator nonlinearity: u^2
 
 # cost weights
 Qx = np.diag([5.0, 0.5])
-Qy = np.array([[5.0]])
+Qy = np.array([[0.0]])
 R = np.diag([0.05])
 Px = Qx.copy()
 Py = Qy.copy()
@@ -130,6 +131,10 @@ def fu_uu_T_contract(x, u, lam_next, du):  # -> (nu,)
     val = lam[1] * (h_uu * du0)
     return np.array([val])
 
+
+def hxx_T_contract(x, w, dx):
+    return np.zeros_like(dx)
+
 # --- Cost Hessians (constant quadratic stage/terminal cost) ---
 
 
@@ -184,38 +189,40 @@ def compute_cost_and_gradient(
 
     grad = np.zeros_like(U)
     for k in reversed(range(N)):
-        Cxk = measurement_equation_jacobian(X[k])
+        Cx_k = measurement_equation_jacobian(X[k])
         ek_y = Y[k] - reference_trajectory[k]
         # gradient (u)
         grad[k] = 2 * R @ U[k]
         # adjoint update (x)
         Ak, _ = state_equation_jacobians(X[k], U[k])
-        lam_next = (2 * Qx @ X[k] + 2 * Cxk.T @ (Qy @ ek_y)) + Ak.T @ lam_next
+        lam_next = 2 * Qx @ X[k] + 2 * Cx_k.T @ (Qy @ ek_y) + Ak.T @ lam_next
     return J, grad
 
 # --- Analytic HVP using 2nd-order adjoints ---
 
 
 def hvp_analytic(X_initial, U, V):
-    """
-    Analytic HVP: For any direction V (N x nu), return H*V (H = Nabla^2 J).
-    Steps:
-      1) Forward: Generate X
-      2) First-order adjoint: Generate lambda
-      3) Forward sensitivity: Forward delta_x with V
-      4) Backward second-order adjoint: Backward delta_lambda, delta_Q_u
-       -> This is H*V
-    """
 
     # --- 1) forward states
     X = simulate_trajectory(X_initial, U)
+    Y = np.zeros((X.shape[0], Qy.shape[0]))
+    for k in range(X.shape[0]):
+        Y[k] = measurement_equation(X[k]).reshape(-1, 1)
+    yN = measurement_equation(X[N])
 
-    # --- 2) first-order adjoint (costate lambda)
+    eN_y = yN - reference_trajectory[N]
+
+    # --- 2) first-order adjoint (costate lambda) with output terms
     lam = np.zeros((N + 1, nx))
-    lam[N] = 2 * P @ X[N]
+    Cx_N = measurement_equation_jacobian(X[N])
+    lam[N] = 2 * Px @ X[N]
+
     for k in range(N - 1, -1, -1):
-        A_k, B_k = state_equation_jacobians(X[k], U[k])
-        lam[k] = 2 * Qx @ X[k] + A_k.T @ lam[k + 1]
+        A_k, _ = state_equation_jacobians(X[k], U[k])
+        Cx_k = measurement_equation_jacobian(X[k])
+        ek_y = Y[k] - reference_trajectory[k]
+        lam[k] = 2 * (2 * Qx @ X[k] + Cx_k.T @ (2 * Qy @ ek_y)) + \
+            A_k.T @ lam[k + 1]
 
     # --- 3) forward directional state: delta_x ---
     dx = np.zeros((N + 1, nx))
@@ -225,24 +232,35 @@ def hvp_analytic(X_initial, U, V):
 
     # --- 4) backward second-order adjoint ---
     d_lambda = np.zeros((N + 1, nx))
+
     # Match the treatment of the terminal term phi_xx = l_xx(X_N,·) (currently 2P)
-    d_lambda[N] = l_xx(X[N], None) @ dx[N]
+    # Additionally, contributions from pure second-order output and second derivatives of output
+    d_lambda[N] = l_xx(X[N], None) @ dx[N] + \
+        Cx_N.T @ (2 * Py @ (Cx_N @ dx[N])) + \
+        hxx_T_contract(X[N], 2 * Py @ eN_y, dx[N])
 
     Hu = np.zeros_like(U)
     for k in range(N - 1, -1, -1):
         A_k, B_k = state_equation_jacobians(X[k], U[k])
+        Cx_k = measurement_equation_jacobian(X[k])
+        ek_y = Y[k] - reference_trajectory[k]
 
         # dlambda_k
         term_xx = fx_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
         term_xu = fx_xu_T_contract(X[k], U[k], lam[k + 1], V[k])
+
         d_lambda[k] = (
             l_xx(X[k], U[k]) @ dx[k] +
             l_xu(X[k], U[k]) @ V[k] +
             A_k.T @ d_lambda[k + 1] +
+            Cx_k.T @ (2 * Qy @ (Cx_k @ dx[k])) +
+            hxx_T_contract(X[k], 2 * Qy @ ek_y, dx[k]) +
             term_xx + term_xu
         )
 
-        # (HV)_k
+        # (HV)_k:
+        #   2R V + B^T dlambda_{k+1} + second-order terms from dynamics
+        #   (Cu=0 -> no direct contribution from output terms)
         term_ux = fu_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
         term_uu = fu_uu_T_contract(X[k], U[k], lam[k + 1], V[k])
         Hu[k] = (
