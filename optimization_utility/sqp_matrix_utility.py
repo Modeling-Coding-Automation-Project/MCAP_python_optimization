@@ -1,6 +1,8 @@
 import numpy as np
 import sympy as sp
 
+from external_libraries.MCAP_python_control.python_control.control_deploy import ExpressionDeploy
+
 
 def extract_parameters_from_state_equations(
         f: sp.Matrix,
@@ -97,9 +99,11 @@ class SQP_CostMatrices_NMPC:
             self.Py = Py
 
         # Precompute Hessians
-        self.Hf_xx, self.Hf_xu, self.Hf_ux, self.Hf_uu = \
+        self.Hf_xx_list, self.Hf_xu_list, self.Hf_ux_list, self.Hf_uu_list = \
             self._stack_hessians_for_f()
-        self.Hh_xx = self._stack_hessians_for_h()
+        self.Hh_xx_list = self._stack_hessians_for_h()
+
+        self.create_numpy_function_from_sympy()
 
     def _stack_hessians_for_f(self):
         """
@@ -138,12 +142,7 @@ class SQP_CostMatrices_NMPC:
             Hf_ux_list.append(Hux)
             Hf_uu_list.append(Huu)
 
-        Hf_xx = sp.Array(Hf_xx_list)  # (nx, nx, nx)  index: [i, j, k]
-        Hf_xu = sp.Array(Hf_xu_list)  # (nx, nx, nu)  index: [i, j, k]
-        Hf_ux = sp.Array(Hf_ux_list)  # (nx, nu, nx)  index: [i, j, k]
-        Hf_uu = sp.Array(Hf_uu_list)  # (nx, nu, nu)  index: [i, j, k]
-
-        return Hf_xx, Hf_xu, Hf_ux, Hf_uu
+        return Hf_xx_list, Hf_xu_list, Hf_ux_list, Hf_uu_list
 
     def _stack_hessians_for_h(self):
         """
@@ -151,12 +150,16 @@ class SQP_CostMatrices_NMPC:
         Hh_xx: Array shape (ny, nx, nx)
         """
         ny = self.h.shape[0]
-        H_list = []
+        Hh_xx_list = []
         for j in range(ny):
             hj = self.h[j, 0]
             Hxx = sp.hessian(hj, self.x_syms)  # (nx, nx)
-            H_list.append(Hxx)
+            Hh_xx_list.append(Hxx)
 
-        Hh_xx = sp.Array(H_list)  # (ny, nx, nx)
+        return Hh_xx_list
 
-        return Hh_xx
+    def create_numpy_function_from_sympy(self):
+
+        a = self.Hf_xx_list[1]
+
+        ExpressionDeploy.create_sympy_code(a)
