@@ -223,7 +223,7 @@ def hvp_analytic(X_initial, U, V):
         A_k, _ = state_equation_jacobians(X[k], U[k])
         Cx_k = measurement_equation_jacobian(X[k])
         ek_y = Y[k] - reference_trajectory[k]
-        lam[k] = 2 * (2 * Qx @ X[k] + Cx_k.T @ (2 * Qy @ ek_y)) + \
+        lam[k] = 2 * Qx @ X[k] + Cx_k.T @ (2 * Qy @ ek_y) + \
             A_k.T @ lam[k + 1]
 
     # --- 3) forward directional state: delta_x ---
