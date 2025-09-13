@@ -184,14 +184,14 @@ def hvp_analytic(X_initial, U, V):
     # --- 1) forward states
     X = simulate_trajectory(X_initial, U)
 
-    # --- 2) first-order adjoint (costate λ)
+    # --- 2) first-order adjoint (costate lambda)
     lam = np.zeros((N + 1, nx))
     lam[N] = 2 * P @ X[N]
     for k in range(N - 1, -1, -1):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
         lam[k] = 2 * Qx @ X[k] + A_k.T @ lam[k + 1]
 
-    # --- 3) forward directional state: δx ---
+    # --- 3) forward directional state: delta_x ---
     dx = np.zeros((N + 1, nx))
     for k in range(N):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
@@ -206,7 +206,7 @@ def hvp_analytic(X_initial, U, V):
     for k in range(N - 1, -1, -1):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
 
-        # dλ_k
+        # dlambda_k
         term_xx = fx_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
         term_xu = fx_xu_T_contract(X[k], U[k], lam[k + 1], V[k])
         d_lambda[k] = (
