@@ -28,8 +28,14 @@ b = 0.3      # damping
 c = 1.2      # state-dependent control effectiveness: cos(theta)*u
 d = 0.10     # actuator nonlinearity: u^2
 
+# cost weights
+Qx = np.diag([5.0, 0.5])
+Qy = np.array([[5.0]])
+R = np.diag([0.05])
+P = Qx.copy()
 
-def plant_dynamics(x, u):
+
+def state_equation(x, u):
     theta, omega = x
     u0 = u[0]
     theta_next = theta + dt * omega
@@ -37,6 +43,10 @@ def plant_dynamics(x, u):
         np.cos(theta) * u0 + d * (u0 ** 2)
     omega_next = omega + dt * omega_dot
     return np.array([theta_next, omega_next])
+
+
+def measurement_equation(x):
+    return x[0, 0]
 
 
 def dynamics_jacobians(x, u):
@@ -114,10 +124,20 @@ def fu_uu_T_contract(x, u, lam_next, du):  # -> (nu,)
 # --- Cost Hessians (constant quadratic stage/terminal cost) ---
 
 
-def l_xx(x, u): return 2 * Q
-def l_uu(x, u): return 2 * R
-def l_xu(x, u): return np.zeros((nx, nu))
-def l_ux(x, u): return np.zeros((nu, nx))
+def l_xx(x, u):
+    return 2 * Qx
+
+
+def l_uu(x, u):
+    return 2 * R
+
+
+def l_xu(x, u):
+    return np.zeros((nx, nu))
+
+
+def l_ux(x, u):
+    return np.zeros((nu, nx))
 
 # --- Rollout ---
 
@@ -126,7 +146,7 @@ def simulate_trajectory(X_initial, U):
     X = np.zeros((N + 1, nx))
     X[0] = X_initial
     for k in range(N):
-        X[k + 1] = plant_dynamics(X[k], U[k])
+        X[k + 1] = state_equation(X[k], U[k])
     return X
 
 # --- Cost and gradient (first-order adjoint) ---
@@ -136,7 +156,7 @@ def compute_cost_and_gradient(X_initial, U):
     X = simulate_trajectory(X_initial, U)
     J = 0.0
     for k in range(N):
-        J += X[k] @ Q @ X[k] + U[k] @ R @ U[k]
+        J += X[k] @ Qx @ X[k] + U[k] @ R @ U[k]
     J += X[N] @ P @ X[N]
 
     grad = np.zeros_like(U)
@@ -144,7 +164,7 @@ def compute_cost_and_gradient(X_initial, U):
     for k in reversed(range(N)):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
         grad[k] = 2 * R @ U[k] + B_k.T @ lam_next
-        lam_next = 2 * Q @ X[k] + A_k.T @ lam_next
+        lam_next = 2 * Qx @ X[k] + A_k.T @ lam_next
     return J, grad
 
 # --- Analytic HVP using 2nd-order adjoints ---
@@ -169,7 +189,7 @@ def hvp_analytic(X_initial, U, V):
     lam[N] = 2 * P @ X[N]
     for k in range(N - 1, -1, -1):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
-        lam[k] = 2 * Q @ X[k] + A_k.T @ lam[k + 1]
+        lam[k] = 2 * Qx @ X[k] + A_k.T @ lam[k + 1]
 
     # --- 3) forward directional state: δx ---
     dx = np.zeros((N + 1, nx))
@@ -177,9 +197,9 @@ def hvp_analytic(X_initial, U, V):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
         dx[k + 1] = A_k @ dx[k] + B_k @ V[k]
 
-    # --- 4) backward second-order adjoint（一般形） ---
+    # --- 4) backward second-order adjoint ---
     d_lambda = np.zeros((N + 1, nx))
-    # 端末項 φ_xx = l_xx(X_N,·) の扱いに合わせる（今は2P）
+    # Match the treatment of the terminal term phi_xx = l_xx(X_N,·) (currently 2P)
     d_lambda[N] = l_xx(X[N], None) @ dx[N]
 
     Hu = np.zeros_like(U)
@@ -210,10 +230,6 @@ def hvp_analytic(X_initial, U, V):
 
 # --- Example Execution ---
 
-# cost weights
-Q = np.diag([5.0, 0.5])
-R = np.diag([0.05])
-P = Q.copy()
 
 # input bounds
 u_min = np.array([-2.0])
@@ -221,6 +237,7 @@ u_max = np.array([2.0])
 
 # initial state: start near inverted position to engage nonlinearity
 X_initial = np.array([np.pi / 4.0, 0.0])
+ref = np.array([0.0])
 
 U_initial = np.zeros((N, nu))
 u_min_mat = np.tile(u_min, (N, 1))
