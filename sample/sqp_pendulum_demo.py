@@ -14,6 +14,7 @@ sys.path.append(os.getcwd())
 import numpy as np
 import sympy as sp
 
+from optimization_utility.sqp_matrix_utility import SQP_CostMatrices_NMPC
 from python_optimization.sqp_active_set_pcg_pls import SQP_ActiveSet_PCG_PLS
 
 
@@ -27,9 +28,12 @@ def create_plant_model():
     omega_next = omega + dt * omega_dot
 
     f = sp.Matrix([theta_next, omega_next])
-    h = theta
+    h = sp.Matrix([[theta]])
 
-    return f, h
+    x_syms = [theta, omega]
+    u_syms = [u0]
+
+    return f, h, x_syms, u_syms
 
 
 # --- Nonlinear NMPC Problem (Pendulum-like with nonlinear actuator) ---
@@ -56,6 +60,20 @@ Py = Qy.copy()
 # reference
 reference = np.array([0.0])
 reference_trajectory = np.tile(reference, (N + 1, 1))
+
+# Create symbolic plant model
+f, h, x_syms, u_syms = create_plant_model()
+
+sqp_cost_matrices = SQP_CostMatrices_NMPC(
+    x_syms=x_syms,
+    u_syms=u_syms,
+    state_equation_vector=f,
+    measurement_equation_vector=h,
+    Np=N,
+    Qx=Qx,
+    Qy=Qy,
+    R=R
+)
 
 
 def state_equation(x, u):
