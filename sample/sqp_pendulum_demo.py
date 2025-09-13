@@ -12,10 +12,27 @@ import sys
 sys.path.append(os.getcwd())
 
 import numpy as np
+import sympy as sp
+
 from python_optimization.sqp_active_set_pcg_pls import SQP_ActiveSet_PCG_PLS
 
-# --- Nonlinear NMPC Problem (Pendulum-like with nonlinear actuator) ---
 
+def create_plant_model():
+    theta, omega, u0, dt, a, b, c, d = sp.symbols(
+        'theta omega u0 dt a b c d', real=True)
+
+    theta_next = theta + dt * omega
+    omega_dot = -a * sp.sin(theta) - b * omega + c * \
+        sp.cos(theta) * u0 + d * (u0 ** 2)
+    omega_next = omega + dt * omega_dot
+
+    f = sp.Matrix([theta_next, omega_next])
+    h = theta
+
+    return f, h
+
+
+# --- Nonlinear NMPC Problem (Pendulum-like with nonlinear actuator) ---
 nx = 2   # [theta, omega]
 nu = 1   # scalar input
 ny = 1   # scalar output (theta)
