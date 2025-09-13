@@ -2,6 +2,7 @@ import os
 import inspect
 import numpy as np
 import sympy as sp
+import importlib
 
 from external_libraries.MCAP_python_control.python_control.control_deploy import ControlDeploy
 from external_libraries.MCAP_python_control.python_control.control_deploy import ExpressionDeploy
@@ -162,6 +163,39 @@ class SQP_CostMatrices_NMPC:
             self.hh_xx_code_file_name = \
             self.create_hessian_numpy_code(
                 file_name_without_ext=caller_file_name_without_ext)
+
+        # state function module
+        self.state_function_code_file_function = self.get_function_caller_from_python_file(
+            self.state_function_code_file_name)
+
+        # measurement function module
+        self.measurement_function_code_file_function = self.get_function_caller_from_python_file(
+            self.measurement_function_code_file_name)
+
+        # jacobian modules
+        self.state_jacobian_x_code_file_function = self.get_function_caller_from_python_file(
+            self.state_jacobian_x_code_file_name)
+        self.state_jacobian_u_code_file_function = self.get_function_caller_from_python_file(
+            self.state_jacobian_u_code_file_name)
+        self.measurement_jacobian_x_code_file_function = self.get_function_caller_from_python_file(
+            self.measurement_jacobian_x_code_file_name)
+
+        # hessian modules
+        self.hf_xx_code_file_function = \
+            self.get_function_caller_from_python_file(
+                self.hf_xx_code_file_name)
+        self.hf_xu_code_file_function = \
+            self.get_function_caller_from_python_file(
+                self.hf_xu_code_file_name)
+        self.hf_ux_code_file_function = \
+            self.get_function_caller_from_python_file(
+                self.hf_ux_code_file_name)
+        self.hf_uu_code_file_function = \
+            self.get_function_caller_from_python_file(
+                self.hf_uu_code_file_name)
+        self.hh_xx_code_file_function = \
+            self.get_function_caller_from_python_file(
+                self.hh_xx_code_file_name)
 
     def create_state_measurement_equation_numpy_code(
             self, file_name_without_ext: str = None):
@@ -344,6 +378,12 @@ class SQP_CostMatrices_NMPC:
             hf_ux_code_file_name, \
             hf_uu_code_file_name, \
             hh_xx_code_file_name
+
+    def get_function_caller_from_python_file(self, file_name: str):
+        module_name = os.path.splitext(os.path.basename(file_name))[0]
+        module = importlib.import_module(module_name)
+
+        return getattr(module, 'function', None)
 
 
 # nx = Hf_xx_numpy.shape[1]          # 状態次元
