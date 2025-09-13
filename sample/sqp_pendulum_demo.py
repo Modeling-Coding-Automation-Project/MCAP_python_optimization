@@ -198,7 +198,7 @@ def hvp_analytic(X_initial, U, V):
 
 
 # initial state: start near inverted position to engage nonlinearity
-X_initial = np.array([np.pi - 0.5, 0.0])
+X_initial = np.array([np.pi / 4.0, 0.0])
 
 U_initial = np.zeros((N, nu))
 u_min_mat = np.tile(u_min, (N, 1))
