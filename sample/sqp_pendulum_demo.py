@@ -30,8 +30,8 @@ c = 1.2      # state-dependent control effectiveness: cos(theta)*u
 d = 0.10     # actuator nonlinearity: u^2
 
 # cost weights
-Qx = np.diag([5.0, 0.5])
-Qy = np.array([[0.0]])
+Qx = np.diag([2.5, 0.5])
+Qy = np.array([[2.5]])
 R = np.diag([0.05])
 Px = Qx.copy()
 Py = Qy.copy()
