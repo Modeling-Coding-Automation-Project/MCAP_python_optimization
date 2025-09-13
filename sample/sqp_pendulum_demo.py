@@ -32,7 +32,12 @@ d = 0.10     # actuator nonlinearity: u^2
 Qx = np.diag([5.0, 0.5])
 Qy = np.array([[5.0]])
 R = np.diag([0.05])
-P = Qx.copy()
+Px = Qx.copy()
+Py = Qy.copy()
+
+# reference
+reference = np.array([0.0])
+reference_trajectory = np.tile(reference, (N + 1, 1))
 
 
 def state_equation(x, u):
@@ -46,10 +51,10 @@ def state_equation(x, u):
 
 
 def measurement_equation(x):
-    return x[0, 0]
+    return x[0]
 
 
-def dynamics_jacobians(x, u):
+def state_equation_jacobians(x, u):
     theta, omega = x
     u0 = u[0]
 
@@ -67,6 +72,10 @@ def dynamics_jacobians(x, u):
     B[1, 0] = dt * domega_dot_du
 
     return A, B
+
+
+def measurement_equation_jacobian(x):
+    return np.array([[1.0, 0.0]])
 
 # --- Second-order contraction callbacks (non-zero) ---
 
@@ -152,19 +161,36 @@ def simulate_trajectory(X_initial, U):
 # --- Cost and gradient (first-order adjoint) ---
 
 
-def compute_cost_and_gradient(X_initial, U):
+def compute_cost_and_gradient(
+        X_initial: np.ndarray,
+        U: np.ndarray
+):
     X = simulate_trajectory(X_initial, U)
+    Y = np.zeros((X.shape[0], Qy.shape[0]))
+    for k in range(X.shape[0]):
+        Y[k] = measurement_equation(X[k]).reshape(-1, 1)
+
     J = 0.0
     for k in range(N):
-        J += X[k] @ Qx @ X[k] + U[k] @ R @ U[k]
-    J += X[N] @ P @ X[N]
+        e_y_r = Y[k] - reference_trajectory[k]
+        J += X[k] @ Qx @ X[k] + e_y_r @ Qy @ e_y_r + U[k] @ R @ U[k]
+
+    eN_y_r = Y[N] - reference_trajectory[N]
+    J += X[N] @ Px @ X[N] + eN_y_r @ Py @ eN_y_r
+
+    # terminal adjoint
+    lam_next = (2 * Px) @ X[N] + \
+        measurement_equation_jacobian(X[N]).T @ (2 * Py @ eN_y_r)
 
     grad = np.zeros_like(U)
-    lam_next = 2 * P @ X[N]
     for k in reversed(range(N)):
-        A_k, B_k = dynamics_jacobians(X[k], U[k])
-        grad[k] = 2 * R @ U[k] + B_k.T @ lam_next
-        lam_next = 2 * Qx @ X[k] + A_k.T @ lam_next
+        Cxk = measurement_equation_jacobian(X[k])
+        ek_y = Y[k] - reference_trajectory[k]
+        # gradient (u)
+        grad[k] = 2 * R @ U[k]
+        # adjoint update (x)
+        Ak, _ = state_equation_jacobians(X[k], U[k])
+        lam_next = (2 * Qx @ X[k] + 2 * Cxk.T @ (Qy @ ek_y)) + Ak.T @ lam_next
     return J, grad
 
 # --- Analytic HVP using 2nd-order adjoints ---
@@ -188,13 +214,13 @@ def hvp_analytic(X_initial, U, V):
     lam = np.zeros((N + 1, nx))
     lam[N] = 2 * P @ X[N]
     for k in range(N - 1, -1, -1):
-        A_k, B_k = dynamics_jacobians(X[k], U[k])
+        A_k, B_k = state_equation_jacobians(X[k], U[k])
         lam[k] = 2 * Qx @ X[k] + A_k.T @ lam[k + 1]
 
     # --- 3) forward directional state: delta_x ---
     dx = np.zeros((N + 1, nx))
     for k in range(N):
-        A_k, B_k = dynamics_jacobians(X[k], U[k])
+        A_k, B_k = state_equation_jacobians(X[k], U[k])
         dx[k + 1] = A_k @ dx[k] + B_k @ V[k]
 
     # --- 4) backward second-order adjoint ---
@@ -204,7 +230,7 @@ def hvp_analytic(X_initial, U, V):
 
     Hu = np.zeros_like(U)
     for k in range(N - 1, -1, -1):
-        A_k, B_k = dynamics_jacobians(X[k], U[k])
+        A_k, B_k = state_equation_jacobians(X[k], U[k])
 
         # dlambda_k
         term_xx = fx_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
@@ -237,7 +263,7 @@ u_max = np.array([2.0])
 
 # initial state: start near inverted position to engage nonlinearity
 X_initial = np.array([np.pi / 4.0, 0.0])
-ref = np.array([0.0])
+
 
 U_initial = np.zeros((N, nu))
 u_min_mat = np.tile(u_min, (N, 1))
