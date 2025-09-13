@@ -131,7 +131,9 @@ def simulate_trajectory(X_initial, U):
     X = np.zeros((N + 1, nx))
     X[0] = X_initial
     for k in range(N):
-        X[k + 1] = state_equation(X[k], U[k])
+        X[k + 1] = sqp_cost_matrices.calculate_state_function(
+            X[k], U[k], state_space_parameters)
+
     return X
 
 # --- Cost and gradient (first-order adjoint) ---

@@ -398,6 +398,20 @@ class SQP_CostMatrices_NMPC:
     def l_ux(self, x, u):
         return np.zeros((self.nu, self.nx))
 
+    def calculate_state_function(
+            self,
+            X: np.ndarray,
+            U: np.ndarray,
+            Parameters
+    ) -> np.ndarray:
+
+        X = X.reshape((self.nx, 1))
+        U = U.reshape((self.nu, 1))
+
+        X_next = self.state_function_code_file_function(X, U, Parameters)
+
+        return X_next.reshape((self.nx,))
+
     def fx_xx_lambda_contract(
             self,
             X: np.ndarray,
