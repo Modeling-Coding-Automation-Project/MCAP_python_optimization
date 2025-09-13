@@ -89,10 +89,6 @@ sqp_cost_matrices = SQP_CostMatrices_NMPC(
 )
 
 
-def measurement_equation_jacobian(x):
-    return np.array([[1.0, 0.0]])
-
-
 def simulate_trajectory(X_initial, U):
     X = np.zeros((N + 1, nx))
     X[0] = X_initial
@@ -124,12 +120,14 @@ def compute_cost_and_gradient(
     J += X[N] @ Px @ X[N] + eN_y_r @ Py @ eN_y_r
 
     # terminal adjoint
-    lam_next = (2 * Px) @ X[N] + \
-        measurement_equation_jacobian(X[N]).T @ (2 * Py @ eN_y_r)
+    C_N = sqp_cost_matrices.calculate_measurement_jacobian_x(
+        X[N], state_space_parameters)
+    lam_next = (2 * Px) @ X[N] + C_N.T @ (2 * Py @ eN_y_r)
 
     grad = np.zeros_like(U)
     for k in reversed(range(N)):
-        Cx_k = measurement_equation_jacobian(X[k])
+        Cx_k = sqp_cost_matrices.calculate_measurement_jacobian_x(
+            X[k], state_space_parameters)
         ek_y = Y[k] - reference_trajectory[k]
 
         A_k = sqp_cost_matrices.calculate_state_jacobian_x(
@@ -161,13 +159,15 @@ def hvp_analytic(X_initial, U, V):
 
     # --- 2) first-order adjoint (costate lambda) with output terms
     lam = np.zeros((N + 1, nx))
-    Cx_N = measurement_equation_jacobian(X[N])
+    Cx_N = sqp_cost_matrices.calculate_measurement_jacobian_x(
+        X[N], state_space_parameters)
     lam[N] = 2 * Px @ X[N]
 
     for k in range(N - 1, -1, -1):
         A_k = sqp_cost_matrices.calculate_state_jacobian_x(
             X[k], U[k], state_space_parameters)
-        Cx_k = measurement_equation_jacobian(X[k])
+        Cx_k = sqp_cost_matrices.calculate_measurement_jacobian_x(
+            X[k], state_space_parameters)
         ek_y = Y[k] - reference_trajectory[k]
         lam[k] = 2 * Qx @ X[k] + Cx_k.T @ (2 * Qy @ ek_y) + \
             A_k.T @ lam[k + 1]
@@ -197,7 +197,8 @@ def hvp_analytic(X_initial, U, V):
             X[k], U[k], state_space_parameters)
         B_k = sqp_cost_matrices.calculate_state_jacobian_u(
             X[k], U[k], state_space_parameters)
-        Cx_k = measurement_equation_jacobian(X[k])
+        Cx_k = sqp_cost_matrices.calculate_measurement_jacobian_x(
+            X[k], state_space_parameters)
         ek_y = Y[k] - reference_trajectory[k]
 
         # dlambda_k
