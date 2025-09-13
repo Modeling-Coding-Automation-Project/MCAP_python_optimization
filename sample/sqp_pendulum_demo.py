@@ -151,30 +151,42 @@ def compute_cost_and_gradient(X_initial, U):
 
 
 def hvp_analytic(X_initial, U, V):
-    # 1) forward states
+    """
+    Analytic HVP: For any direction V (N x nu), return H*V (H = Nabla^2 J).
+    Steps:
+      1) Forward: Generate X
+      2) First-order adjoint: Generate lambda
+      3) Forward sensitivity: Forward delta_x with V
+      4) Backward second-order adjoint: Backward delta_lambda, delta_Q_u
+       -> This is H*V
+    """
+
+    # --- 1) forward states
     X = simulate_trajectory(X_initial, U)
 
-    # 2) first-order adjoint
+    # --- 2) first-order adjoint (costate λ)
     lam = np.zeros((N + 1, nx))
     lam[N] = 2 * P @ X[N]
     for k in range(N - 1, -1, -1):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
         lam[k] = 2 * Q @ X[k] + A_k.T @ lam[k + 1]
 
-    # 3) forward directional state
+    # --- 3) forward directional state: δx ---
     dx = np.zeros((N + 1, nx))
     for k in range(N):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
         dx[k + 1] = A_k @ dx[k] + B_k @ V[k]
 
-    # 4) backward second-order adjoint
+    # --- 4) backward second-order adjoint（一般形） ---
     d_lambda = np.zeros((N + 1, nx))
+    # 端末項 φ_xx = l_xx(X_N,·) の扱いに合わせる（今は2P）
     d_lambda[N] = l_xx(X[N], None) @ dx[N]
 
     Hu = np.zeros_like(U)
     for k in range(N - 1, -1, -1):
         A_k, B_k = dynamics_jacobians(X[k], U[k])
 
+        # dλ_k
         term_xx = fx_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
         term_xu = fx_xu_T_contract(X[k], U[k], lam[k + 1], V[k])
         d_lambda[k] = (
@@ -184,6 +196,7 @@ def hvp_analytic(X_initial, U, V):
             term_xx + term_xu
         )
 
+        # (HV)_k
         term_ux = fu_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
         term_uu = fu_uu_T_contract(X[k], U[k], lam[k + 1], V[k])
         Hu[k] = (
@@ -193,6 +206,7 @@ def hvp_analytic(X_initial, U, V):
             term_ux + term_uu
         )
     return Hu
+
 
 # --- Example Execution ---
 

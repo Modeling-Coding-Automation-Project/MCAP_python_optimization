@@ -121,13 +121,15 @@ def compute_cost_and_gradient(X_initial, U):
 
 def hvp_analytic(X_initial, U, V):
     """
-    解析HVP: 任意の方向 V (N x nu) に対し H*V を返す（H = ∇^2 J）。
-    手順:
-      1) 前進: X を生成
-      2) 1階随伴: λ を生成
-      3) 前進感度: δx を V で前進
-      4) 後退2階随伴: δλ, δQ_u を後退で生成 → これが H*V
+    Analytic HVP: For any direction V (N x nu), return H*V (H = Nabla^2 J).
+    Steps:
+      1) Forward: Generate X
+      2) First-order adjoint: Generate lambda
+      3) Forward sensitivity: Forward delta_x with V
+      4) Backward second-order adjoint: Backward delta_lambda, delta_Q_u
+       -> This is H*V
     """
+
     # --- 1) forward states
     X = simulate_trajectory(X_initial, U)
 
