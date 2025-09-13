@@ -191,11 +191,13 @@ def compute_cost_and_gradient(
     for k in reversed(range(N)):
         Cx_k = measurement_equation_jacobian(X[k])
         ek_y = Y[k] - reference_trajectory[k]
-        # gradient (u)
-        grad[k] = 2 * R @ U[k]
-        # adjoint update (x)
-        Ak, _ = state_equation_jacobians(X[k], U[k])
+
+        Ak, B_k = state_equation_jacobians(X[k], U[k])
+
+        grad[k] = 2 * R @ U[k] + B_k.T @ lam_next
+
         lam_next = 2 * Qx @ X[k] + 2 * Cx_k.T @ (Qy @ ek_y) + Ak.T @ lam_next
+
     return J, grad
 
 # --- Analytic HVP using 2nd-order adjoints ---
