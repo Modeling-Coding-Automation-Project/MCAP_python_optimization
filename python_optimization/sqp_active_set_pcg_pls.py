@@ -118,15 +118,6 @@ class SQP_ActiveSet_PCG_PLS:
         return self._line_search_step_iterated_number
 
     # functions
-    def hvp_free(
-        self,
-        P_in: np.ndarray
-    ):
-        Hv = self.hvp_function(self.X_initial, self.U, P_in)
-        Hv += self._lambda_factor * P_in
-
-        return Hv
-
     def preconditioned_conjugate_gradient(
         self,
         rhs: np.ndarray,
@@ -155,7 +146,8 @@ class SQP_ActiveSet_PCG_PLS:
             r, z, self._active_set)
 
         for pcg_iteration in range(self._pcg_max_iteration):
-            Hp = self.hvp_free(p)
+            Hp = self.hvp_function(self.X_initial, self.U, p)
+            Hp += self._lambda_factor * p
 
             denominator = ActiveSet2D_MatrixOperator.vdot(
                 p, Hp, self._active_set)
