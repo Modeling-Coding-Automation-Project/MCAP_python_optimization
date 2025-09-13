@@ -33,35 +33,6 @@ SOLVER_MAX_ITERATION_DEFAULT = 100
 LAMBDA_FACTOR_DEFAULT = 1e-6
 
 
-def apply_M_inv(
-        active_set: ActiveSet2D,
-        x: np.ndarray,
-        M_inv=None):
-
-    if M_inv is None:
-        return x
-    else:
-        return ActiveSet2D_MatrixOperator.element_wise_product(
-            x, M_inv, active_set)
-
-
-def vec_mask(
-        A: np.ndarray,
-        mask: np.ndarray):
-
-    return A[mask]
-
-
-def vec_unmask(
-        v: np.ndarray,
-        mask: np.ndarray,
-        U_shape: tuple):
-
-    out = np.zeros(U_shape)
-    out[mask] = v
-    return out
-
-
 class SQP_ActiveSet_PCG_PLS:
     def __init__(
             self,
@@ -175,8 +146,8 @@ class SQP_ActiveSet_PCG_PLS:
         r = rhs.copy()
 
         # Preconditioning
-        z = apply_M_inv(
-            self._active_set, x=r, M_inv=M_inv)
+        z = ActiveSet2D_MatrixOperator.element_wise_product(
+            r, M_inv, self._active_set)
 
         p = z.copy()
 
@@ -206,8 +177,8 @@ class SQP_ActiveSet_PCG_PLS:
                     self._pcg_tol * rhs_norm:
                 break
 
-            z = apply_M_inv(
-                self._active_set, x=r, M_inv=M_inv)
+            z = ActiveSet2D_MatrixOperator.element_wise_product(
+                r, M_inv, self._active_set)
 
             rz_new = ActiveSet2D_MatrixOperator.vdot(
                 r, z, self._active_set)
