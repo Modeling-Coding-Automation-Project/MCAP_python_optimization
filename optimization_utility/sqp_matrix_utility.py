@@ -406,6 +406,7 @@ class SQP_CostMatrices_NMPC:
             lam_next: np.ndarray,
             dX: np.ndarray
     ) -> np.ndarray:
+        # sum_i lam_i * ( d^2 f_i / dx^2 @ dx )
 
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
@@ -432,6 +433,7 @@ class SQP_CostMatrices_NMPC:
             lam_next: np.ndarray,
             dU: np.ndarray
     ) -> np.ndarray:
+        # sum_i lam_i * ( d^2 f_i / (dx du) @ du )
 
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
@@ -450,5 +452,91 @@ class SQP_CostMatrices_NMPC:
                     for k in range(self.nu):
                         acc += Hf_xu[i * self.nx + j, k] * dU[k]
                     out[j] += lam_next[i] * acc
+
+        return out
+
+    def fu_xx_lambda_contract(
+            self,
+            X: np.ndarray,
+            U: np.ndarray,
+            Parameters,
+            lam_next: np.ndarray,
+            dX: np.ndarray
+    ) -> np.ndarray:
+        # sum_i lam_i * ( d^2 f_i / (du dx) @ dx )
+
+        X = X.reshape((self.nx, 1))
+        U = U.reshape((self.nu, 1))
+
+        out = np.zeros(self.nu, dtype=float)
+
+        Hf_ux = self.hf_ux_code_file_function(
+            X, U, Parameters)
+
+        if self.nu == 0:
+            pass
+        else:
+            for i in range(self.nx):
+                for k in range(self.nu):
+                    acc = 0.0
+                    for j in range(self.nx):
+                        acc += Hf_ux[i * self.nu + k, j] * dX[j]
+                    out[k] += lam_next[i] * acc
+
+        return out
+
+    def fu_uu_lambda_contract(
+            self,
+            X: np.ndarray,
+            U: np.ndarray,
+            Parameters,
+            lam_next: np.ndarray,
+            dU: np.ndarray
+    ) -> np.ndarray:
+        # sum_i lam_i * ( d^2 f_i / du^2 @ du )
+
+        X = X.reshape((self.nx, 1))
+        U = U.reshape((self.nu, 1))
+
+        out = np.zeros(self.nu, dtype=float)
+
+        Hf_uu = self.hf_uu_code_file_function(
+            X, U, Parameters)
+
+        if self.nu == 0:
+            pass
+        else:
+            for i in range(self.nx):            # f_i の添字
+                for j in range(self.nu):        # 出力（入力方向）の添字
+                    acc = 0.0
+                    for k in range(self.nu):    # du を掛ける列の添字（入力方向）
+                        acc += Hf_uu[i * self.nu + j, k] * dU[k]
+                    out[j] += lam_next[i] * acc
+
+        return out
+
+    def hxx_lambda_contract(
+            self,
+            X: np.ndarray,
+            Parameters,
+            w: np.ndarray,
+            dX: np.ndarray
+    ) -> np.ndarray:
+        # sum_i w_i * ( d^2 h_i / dx^2 @ dx )
+
+        X = X.reshape((self.nx, 1))
+        U = np.zeros((self.nu, 1))
+
+        out = np.zeros(self.nx, dtype=float)
+
+        Hh_xx = self.hh_xx_code_file_function(
+            X, U, Parameters)
+
+        for i in range(self.ny):
+            for j in range(self.nx):
+                acc = 0.0
+                for k in range(self.nx):
+                    acc += Hh_xx[i * self.nx + j, k] * dX[k]
+                out[j] += w[i] * acc
 
         return out

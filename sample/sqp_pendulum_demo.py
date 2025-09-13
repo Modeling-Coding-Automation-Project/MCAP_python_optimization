@@ -126,83 +126,6 @@ def state_equation_jacobians(x, u):
 def measurement_equation_jacobian(x):
     return np.array([[1.0, 0.0]])
 
-# --- Second-order contraction callbacks (non-zero) ---
-
-
-def fx_xx_lambda_contract(x, u, lam_next, dx):  # -> (nx,)
-    # sum_i lam_i * ( d^2 f_i / dx^2 @ dx )
-    theta, _ = x
-    u0 = u[0]
-    lam = lam_next
-    dx0 = dx[0]
-
-    # Only f2 (omega_next) is nonlinear in x:
-    # dd f2 / dtheta^2 = dt * ( a*sin(theta) - c*cos(theta)*u )
-    h_theta_theta = dt * (a * np.sin(theta) - c * np.cos(theta) * u0)
-
-    v0 = lam[1] * (h_theta_theta * dx0)  # component along theta
-    # no cross terms, no dependence on omega in second derivative
-    return np.array([v0, 0.0])
-
-
-def fx_xu_lambda_contract(x, u, lam_next, du):  # -> (nx,)
-    # sum_i lam_i * ( d^2 f_i / (dx du) @ du )
-    theta, _ = x
-    lam = lam_next
-    du0 = du[0]
-
-    # For f2: d/dtheta (d f2/du) = dt * (-c * sin(theta))
-    h_theta_u = dt * (-c * np.sin(theta))
-    v0 = lam[1] * (h_theta_u * du0)
-    return np.array([v0, 0.0])
-
-
-def fu_xx_lambda_contract(x, u, lam_next, dx):  # -> (nu,)
-    # sum_i lam_i * ( d^2 f_i / (du dx) @ dx )
-    theta, _ = x
-    lam = lam_next
-    dx0 = dx[0]
-
-    # For f2: d/du (d f2/dtheta) = dt * (-c * sin(theta))
-    h_u_theta = dt * (-c * np.sin(theta))
-    val = lam[1] * (h_u_theta * dx0)
-    return np.array([val])
-
-
-def fu_uu_lambda_contract(x, u, lam_next, du):  # -> (nu,)
-    # sum_i lam_i * ( d^2 f_i / du^2 @ du )
-    lam = lam_next
-    du0 = du[0]
-
-    # For f2: dd f2 / du^2 = dt * (2d)
-    h_uu = dt * (2.0 * d)
-    val = lam[1] * (h_uu * du0)
-    return np.array([val])
-
-
-def hxx_lambda_contract(x, w, dx):
-    return np.zeros_like(dx)
-
-# --- Cost Hessians (constant quadratic stage/terminal cost) ---
-
-
-def l_xx(x, u):
-    return 2 * Qx
-
-
-def l_uu(x, u):
-    return 2 * R
-
-
-def l_xu(x, u):
-    return np.zeros((nx, nu))
-
-
-def l_ux(x, u):
-    return np.zeros((nu, nx))
-
-# --- Rollout ---
-
 
 def simulate_trajectory(X_initial, U):
     X = np.zeros((N + 1, nx))
@@ -285,9 +208,10 @@ def hvp_analytic(X_initial, U, V):
 
     # Match the treatment of the terminal term phi_xx = l_xx(X_N,·) (currently 2P)
     # Additionally, contributions from pure second-order output and second derivatives of output
-    d_lambda[N] = l_xx(X[N], None) @ dx[N] + \
+    d_lambda[N] = sqp_cost_matrices.l_xx(X[N], None) @ dx[N] + \
         Cx_N.T @ (2 * Py @ (Cx_N @ dx[N])) + \
-        hxx_lambda_contract(X[N], 2 * Py @ eN_y, dx[N])
+        sqp_cost_matrices.hxx_lambda_contract(
+            X[N], state_space_parameters, 2 * Py @ eN_y, dx[N])
 
     Hu = np.zeros_like(U)
     for k in range(N - 1, -1, -1):
@@ -302,22 +226,26 @@ def hvp_analytic(X_initial, U, V):
             X[k], U[k], state_space_parameters, lam[k + 1], V[k])
 
         d_lambda[k] = (
-            l_xx(X[k], U[k]) @ dx[k] +
-            l_xu(X[k], U[k]) @ V[k] +
+            sqp_cost_matrices.l_xx(X[k], U[k]) @ dx[k] +
+            sqp_cost_matrices.l_xu(X[k], U[k]) @ V[k] +
             A_k.T @ d_lambda[k + 1] +
             Cx_k.T @ (2 * Qy @ (Cx_k @ dx[k])) +
-            hxx_lambda_contract(X[k], 2 * Qy @ ek_y, dx[k]) +
+            sqp_cost_matrices.hxx_lambda_contract(
+                X[k], state_space_parameters, 2 * Qy @ ek_y, dx[k]) +
             term_xx + term_xu
         )
 
         # (HV)_k:
         #   2R V + B^T dlambda_{k+1} + second-order terms from dynamics
         #   (Cu=0 -> no direct contribution from output terms)
-        term_ux = fu_xx_lambda_contract(X[k], U[k], lam[k + 1], dx[k])
-        term_uu = fu_uu_lambda_contract(X[k], U[k], lam[k + 1], V[k])
+        term_ux = sqp_cost_matrices.fu_xx_lambda_contract(
+            X[k], U[k], state_space_parameters, lam[k + 1], dx[k])
+        term_uu = sqp_cost_matrices.fu_uu_lambda_contract(
+            X[k], U[k], state_space_parameters, lam[k + 1], V[k])
+
         Hu[k] = (
-            l_uu(X[k], U[k]) @ V[k] +
-            l_ux(X[k], U[k]) @ dx[k] +
+            sqp_cost_matrices.l_uu(X[k], U[k]) @ V[k] +
+            sqp_cost_matrices.l_ux(X[k], U[k]) @ dx[k] +
             B_k.T @ d_lambda[k + 1] +
             term_ux + term_uu
         )
