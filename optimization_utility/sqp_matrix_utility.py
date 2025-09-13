@@ -3,6 +3,7 @@ import inspect
 import numpy as np
 import sympy as sp
 import importlib
+from dataclasses import dataclass
 
 from external_libraries.MCAP_python_control.python_control.control_deploy import ControlDeploy
 from external_libraries.MCAP_python_control.python_control.control_deploy import ExpressionDeploy
@@ -385,13 +386,40 @@ class SQP_CostMatrices_NMPC:
 
         return getattr(module, 'function', None)
 
+    def l_xx(self, x, u):
+        return 2 * self.Qx
 
-# nx = Hf_xx_numpy.shape[1]          # 状態次元
-# out = np.zeros(nx, dtype=float)    # 結果ベクトル (nx,)
+    def l_uu(self, x, u):
+        return 2 * self.R
 
-# for i in range(nx):                # f_i の添字
-#     for j in range(nx):            # 出力成分の添字
-#         acc = 0.0
-#         for k in range(nx):        # dx を掛ける列の添字
-#             acc += Hf_xx_numpy[i, j, k] * dx[k]
-#         out[j] += lam_next[i] * acc
+    def l_xu(self, x, u):
+        return np.zeros((self.nx, self.nu))
+
+    def l_ux(self, x, u):
+        return np.zeros((self.nu, self.nx))
+
+    def fx_xx_lambda_contract(
+            self,
+            X: np.ndarray,
+            U: np.ndarray,
+            Parameters,
+            lam_next: np.ndarray,
+            dX: np.ndarray
+    ) -> np.ndarray:
+
+        X = X.reshape((self.nx, 1))
+        U = U.reshape((self.nu, 1))
+
+        out = np.zeros(self.nx, dtype=float)
+
+        Hf_xx = self.hf_xx_code_file_function(
+            X, U, Parameters)
+
+        for i in range(self.nx):
+            for j in range(self.nx):
+                acc = 0.0
+                for k in range(self.nx):
+                    acc += Hf_xx[i * self.nx + j, k] * dX[k]
+                out[j] += lam_next[i] * acc
+
+        return out

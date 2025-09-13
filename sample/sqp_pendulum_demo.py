@@ -13,6 +13,7 @@ sys.path.append(os.getcwd())
 
 import numpy as np
 import sympy as sp
+from dataclasses import dataclass
 
 from optimization_utility.sqp_matrix_utility import SQP_CostMatrices_NMPC
 from python_optimization.sqp_active_set_pcg_pls import SQP_ActiveSet_PCG_PLS
@@ -49,6 +50,18 @@ a = 9.81     # gravity/l over I scaling
 b = 0.3      # damping
 c = 1.2      # state-dependent control effectiveness: cos(theta)*u
 d = 0.10     # actuator nonlinearity: u^2
+
+
+@dataclass
+class Parameters:
+    a: float = a
+    b: float = b
+    c: float = c
+    d: float = d
+    dt: float = dt
+
+
+state_space_parameters = Parameters()
 
 # cost weights
 Qx = np.diag([2.5, 0.5])
@@ -116,7 +129,7 @@ def measurement_equation_jacobian(x):
 # --- Second-order contraction callbacks (non-zero) ---
 
 
-def fx_xx_T_contract(x, u, lam_next, dx):  # -> (nx,)
+def fx_xx_lambda_contract(x, u, lam_next, dx):  # -> (nx,)
     # sum_i lam_i * ( d^2 f_i / dx^2 @ dx )
     theta, _ = x
     u0 = u[0]
@@ -132,7 +145,7 @@ def fx_xx_T_contract(x, u, lam_next, dx):  # -> (nx,)
     return np.array([v0, 0.0])
 
 
-def fx_xu_T_contract(x, u, lam_next, du):  # -> (nx,)
+def fx_xu_lambda_contract(x, u, lam_next, du):  # -> (nx,)
     # sum_i lam_i * ( d^2 f_i / (dx du) @ du )
     theta, _ = x
     lam = lam_next
@@ -144,7 +157,7 @@ def fx_xu_T_contract(x, u, lam_next, du):  # -> (nx,)
     return np.array([v0, 0.0])
 
 
-def fu_xx_T_contract(x, u, lam_next, dx):  # -> (nu,)
+def fu_xx_lambda_contract(x, u, lam_next, dx):  # -> (nu,)
     # sum_i lam_i * ( d^2 f_i / (du dx) @ dx )
     theta, _ = x
     lam = lam_next
@@ -156,7 +169,7 @@ def fu_xx_T_contract(x, u, lam_next, dx):  # -> (nu,)
     return np.array([val])
 
 
-def fu_uu_T_contract(x, u, lam_next, du):  # -> (nu,)
+def fu_uu_lambda_contract(x, u, lam_next, du):  # -> (nu,)
     # sum_i lam_i * ( d^2 f_i / du^2 @ du )
     lam = lam_next
     du0 = du[0]
@@ -167,7 +180,7 @@ def fu_uu_T_contract(x, u, lam_next, du):  # -> (nu,)
     return np.array([val])
 
 
-def hxx_T_contract(x, w, dx):
+def hxx_lambda_contract(x, w, dx):
     return np.zeros_like(dx)
 
 # --- Cost Hessians (constant quadratic stage/terminal cost) ---
@@ -274,7 +287,7 @@ def hvp_analytic(X_initial, U, V):
     # Additionally, contributions from pure second-order output and second derivatives of output
     d_lambda[N] = l_xx(X[N], None) @ dx[N] + \
         Cx_N.T @ (2 * Py @ (Cx_N @ dx[N])) + \
-        hxx_T_contract(X[N], 2 * Py @ eN_y, dx[N])
+        hxx_lambda_contract(X[N], 2 * Py @ eN_y, dx[N])
 
     Hu = np.zeros_like(U)
     for k in range(N - 1, -1, -1):
@@ -283,23 +296,25 @@ def hvp_analytic(X_initial, U, V):
         ek_y = Y[k] - reference_trajectory[k]
 
         # dlambda_k
-        term_xx = fx_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
-        term_xu = fx_xu_T_contract(X[k], U[k], lam[k + 1], V[k])
+        term_xx = sqp_cost_matrices.fx_xx_lambda_contract(
+            X[k], U[k], state_space_parameters, lam[k + 1], dx[k])
+
+        term_xu = fx_xu_lambda_contract(X[k], U[k], lam[k + 1], V[k])
 
         d_lambda[k] = (
             l_xx(X[k], U[k]) @ dx[k] +
             l_xu(X[k], U[k]) @ V[k] +
             A_k.T @ d_lambda[k + 1] +
             Cx_k.T @ (2 * Qy @ (Cx_k @ dx[k])) +
-            hxx_T_contract(X[k], 2 * Qy @ ek_y, dx[k]) +
+            hxx_lambda_contract(X[k], 2 * Qy @ ek_y, dx[k]) +
             term_xx + term_xu
         )
 
         # (HV)_k:
         #   2R V + B^T dlambda_{k+1} + second-order terms from dynamics
         #   (Cu=0 -> no direct contribution from output terms)
-        term_ux = fu_xx_T_contract(X[k], U[k], lam[k + 1], dx[k])
-        term_uu = fu_uu_T_contract(X[k], U[k], lam[k + 1], V[k])
+        term_ux = fu_xx_lambda_contract(X[k], U[k], lam[k + 1], dx[k])
+        term_uu = fu_uu_lambda_contract(X[k], U[k], lam[k + 1], V[k])
         Hu[k] = (
             l_uu(X[k], U[k]) @ V[k] +
             l_ux(X[k], U[k]) @ dx[k] +
