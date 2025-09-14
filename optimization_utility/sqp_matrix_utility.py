@@ -921,8 +921,12 @@ class SQP_CostMatrices_NMPC:
             U: np.ndarray
     ):
         """
-        Computes the cost function value and its gradient with respect to the control input sequence for a given initial state and control trajectory.
-        This function simulates the system trajectory using the provided initial state and control inputs, evaluates the cost function over the prediction horizon, and calculates the gradient of the cost with respect to the control inputs using adjoint (backpropagation) methods.
+        Computes the cost function value and its gradient with respect to the control input sequence
+          for a given initial state and control trajectory.
+        This function simulates the system trajectory using the provided initial state and control inputs,
+          evaluates the cost function over the prediction horizon,
+          and calculates the gradient of the cost with respect to the control inputs
+          using adjoint (backpropagation) methods.
         Parameters
         ----------
         X_initial : np.ndarray
