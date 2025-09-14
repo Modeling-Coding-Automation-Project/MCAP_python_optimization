@@ -198,6 +198,9 @@ class SQP_CostMatrices_NMPC:
             self.get_function_caller_from_python_file(
                 self.hh_xx_code_file_name)
 
+        self.state_space_parameters = None
+        self.reference_trajectory = None
+
     def create_state_measurement_equation_numpy_code(
             self, file_name_without_ext: str = None):
         state_function_code_file_name = STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
@@ -610,3 +613,63 @@ class SQP_CostMatrices_NMPC:
                 out[j] += w[i] * acc
 
         return out
+
+    def simulate_trajectory(
+        self,
+        X_initial: np.ndarray,
+        U: np.ndarray,
+        Parameters
+    ):
+        X = np.zeros((self.Np + 1, self.nx))
+        X[0] = X_initial
+        for k in range(self.Np):
+            X[k + 1] = self.calculate_state_function(
+                X[k], U[k], Parameters)
+
+        return X
+
+    def compute_cost_and_gradient(
+            self,
+            X_initial: np.ndarray,
+            U: np.ndarray
+    ):
+        # This function will be called from SQP solver,
+        # thus Parameters and Reference trajectory must be changed beforehand.
+
+        X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
+        Y = np.zeros((X.shape[0], self.Qy.shape[0]))
+        for k in range(X.shape[0]):
+            Y[k] = self.calculate_measurement_function(
+                X[k], self.state_space_parameters)
+
+        J = 0.0
+        for k in range(self.Np):
+            e_y_r = Y[k] - self.reference_trajectory[k]
+            J += X[k] @ self.Qx @ X[k] + \
+                e_y_r @ self.Qy @ e_y_r + U[k] @ self.R @ U[k]
+
+        eN_y_r = Y[self.Np] - self.reference_trajectory[self.Np]
+        J += X[self.Np] @ self.Px @ X[self.Np] + eN_y_r @ self.Py @ eN_y_r
+
+        # terminal adjoint
+        C_N = self.calculate_measurement_jacobian_x(
+            X[self.Np], self.state_space_parameters)
+        lam_next = (2 * self.Px) @ X[self.Np] + C_N.T @ (2 * self.Py @ eN_y_r)
+
+        grad = np.zeros_like(U)
+        for k in reversed(range(self.Np)):
+            Cx_k = self.calculate_measurement_jacobian_x(
+                X[k], self.state_space_parameters)
+            ek_y = Y[k] - self.reference_trajectory[k]
+
+            A_k = self.calculate_state_jacobian_x(
+                X[k], U[k], self.state_space_parameters)
+            B_k = self.calculate_state_jacobian_u(
+                X[k], U[k], self.state_space_parameters)
+
+            grad[k] = 2 * self.R @ U[k] + B_k.T @ lam_next
+
+            lam_next = 2 * self.Qx @ X[k] + 2 * \
+                Cx_k.T @ (self.Qy @ ek_y) + A_k.T @ lam_next
+
+        return J, grad

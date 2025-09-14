@@ -236,6 +236,8 @@ def hvp_analytic(X_initial, U, V):
 
 # --- Example Execution ---
 
+sqp_cost_matrices.state_space_parameters = state_space_parameters
+sqp_cost_matrices.reference_trajectory = reference_trajectory
 
 # input bounds
 u_min = np.array([-2.0])
@@ -256,7 +258,7 @@ solver.set_solver_max_iteration(30)
 
 U_opt, J_opt = solver.solve(
     U_initial=U_initial,
-    cost_and_gradient_function=compute_cost_and_gradient,
+    cost_and_gradient_function=sqp_cost_matrices.compute_cost_and_gradient,
     hvp_function=hvp_analytic,
     X_initial=X_initial,
     u_min=u_min_mat,
