@@ -93,11 +93,11 @@ class SQP_CostMatrices_NMPC:
     and related computations for SQP-based NMPC.
 
     Attributes:
-        x_syms (sp.Matrix): State variable symbols.
-        u_syms (sp.Matrix): Input variable symbols.
+        x_syms (sp.Matrix): Symbolic state variables.
+        u_syms (sp.Matrix): Symbolic input variables.
         f (sp.Matrix): State equation vector.
         h (sp.Matrix): Measurement equation vector.
-        Parameters (list): List of parameter symbols extracted from f and h.
+        Parameters (list): List of symbolic parameters extracted from f and h.
         nx (int): Number of states.
         nu (int): Number of inputs.
         ny (int): Number of outputs.
@@ -107,13 +107,25 @@ class SQP_CostMatrices_NMPC:
         R (np.ndarray): Input cost weight matrix.
         Px (np.ndarray): Terminal state cost weight matrix.
         Py (np.ndarray): Terminal output cost weight matrix.
-        A_matrix (sp.Matrix): Jacobian of f w.r.t. x (df/dx).
-        B_matrix (sp.Matrix): Jacobian of f w.r.t. u (df/du).
-        C_matrix (sp.Matrix): Jacobian of h w.r.t. x (dh/dx).
-        Hf_xx_matrix, Hf_xu_matrix, Hf_ux_matrix, Hf_uu_matrix: Stacked Hessians of f.
-        Hh_xx_matrix: Stacked Hessians of h.
-        Various code file names and function handles for state, measurement,
-            Jacobians, and Hessians.
+        U_min_matrix (np.ndarray): Minimum input constraint matrix over horizon.
+        U_max_matrix (np.ndarray): Maximum input constraint matrix over horizon.
+        Y_min_matrix (np.ndarray): Minimum output constraint matrix over horizon.
+        Y_max_matrix (np.ndarray): Maximum output constraint matrix over horizon.
+        Y_min_max_rho (float): Penalty factor for output constraints.
+        A_matrix (sp.Matrix): Jacobian of f w.r.t. x.
+        B_matrix (sp.Matrix): Jacobian of f w.r.t. u.
+        C_matrix (sp.Matrix): Jacobian of h w.r.t. x.
+        Hf_xx_matrix, Hf_xu_matrix, Hf_ux_matrix, Hf_uu_matrix: Hessians of f.
+        Hh_xx_matrix: Hessians of h.
+        state_function_code_file_name (str): Generated state function code file name.
+        measurement_function_code_file_name (str): Generated measurement function code file name.
+        state_jacobian_x_code_file_name (str): Generated state Jacobian w.r.t. x code file name.
+        state_jacobian_u_code_file_name (str): Generated state Jacobian w.r.t. u code file name.
+        measurement_jacobian_x_code_file_name (str): Generated measurement Jacobian w.r.t. x code file name.
+        hf_xx_code_file_name, hf_xu_code_file_name,
+          hf_ux_code_file_name, hf_uu_code_file_name: Generated Hessian code file names for f.
+        hh_xx_code_file_name: Generated Hessian code file name for h.
+        state_function_code_file_function (callable): Callable for
     """
 
     def __init__(
