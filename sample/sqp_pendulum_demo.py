@@ -65,14 +65,14 @@ state_space_parameters = Parameters()
 
 # cost weights
 Qx = np.diag([2.5, 0.5])
-Qy = np.array([[2.5]])
+Qy = np.diag([2.5])
 R = np.diag([0.05])
 Px = Qx.copy()
 Py = Qy.copy()
 
 # reference
-reference = np.array([0.0])
-reference_trajectory = np.tile(reference, (N + 1, 1))
+reference = np.array([[0.0]])
+reference_trajectory = np.tile(reference, (1, N + 1))
 
 # Create symbolic plant model
 f, h, x_syms, u_syms = create_plant_model()
@@ -94,16 +94,16 @@ sqp_cost_matrices.state_space_parameters = state_space_parameters
 sqp_cost_matrices.reference_trajectory = reference_trajectory
 
 # input bounds
-u_min = np.array([-2.0])
-u_max = np.array([2.0])
+u_min = np.array([[-2.0]])
+u_max = np.array([[2.0]])
 
 # initial state
-X_initial = np.array([np.pi / 4.0, 0.0])
+X_initial = np.array([[np.pi / 4.0], [0.0]])
 
 
-U_initial = np.zeros((N, nu))
-u_min_mat = np.tile(u_min, (N, 1))
-u_max_mat = np.tile(u_max, (N, 1))
+U_initial = np.zeros((nu, N))
+u_min_mat = np.tile(u_min, (1, N))
+u_max_mat = np.tile(u_max, (1, N))
 
 solver = SQP_ActiveSet_PCG_PLS(
     U_size=(U_initial.shape[0], U_initial.shape[1])
