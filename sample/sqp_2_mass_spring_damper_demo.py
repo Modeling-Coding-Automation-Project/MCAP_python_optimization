@@ -86,7 +86,7 @@ Py = Qy.copy()
 
 # reference
 reference = np.array([0.0])
-reference_trajectory = np.tile(reference, (N + 1, 1))
+reference_trajectory = np.tile(reference, (1, N + 1))
 
 # Create symbolic plant model
 f, h, x_syms, u_syms = create_plant_model()
@@ -107,15 +107,15 @@ sqp_cost_matrices = SQP_CostMatrices_NMPC(
 sqp_cost_matrices.state_space_parameters = state_space_parameters
 sqp_cost_matrices.reference_trajectory = reference_trajectory
 
-u_min = np.array([-1.0, -1.0])
-u_max = np.array([1.0, 1.0])
-x_min = np.array([-np.inf, -np.inf, -np.inf, -np.inf])
-x_max = np.array([np.inf, np.inf, np.inf, np.inf])
+u_min = np.array([[-1.0], [-1.0]])
+u_max = np.array([[1.0], [1.0]])
+x_min = np.array([[-np.inf], [-np.inf], [-np.inf], [-np.inf]])
+x_max = np.array([[np.inf], [np.inf], [np.inf], [np.inf]])
 
-X_initial = np.array([5.0, 0.0, 5.0, 0.0])
-U_initial = np.zeros((N, nu))
-u_min_mat = np.tile(u_min, (N, 1))
-u_max_mat = np.tile(u_max, (N, 1))
+X_initial = np.array([[5.0], [0.0], [5.0], [0.0]])
+U_initial = np.zeros((nu, N))
+u_min_mat = np.tile(u_min, (1, N))
+u_max_mat = np.tile(u_max, (1, N))
 
 solver = SQP_ActiveSet_PCG_PLS(
     U_size=(U_initial.shape[0], U_initial.shape[1])

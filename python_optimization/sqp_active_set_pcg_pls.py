@@ -1,11 +1,12 @@
 """
 File: sqp_active_set_pcg_pls.py
 
-SQP: Sequential Quadratic Programming
-PCG: Preconditioned Conjugate Gradient
-PLS: Projected Line Search
-HVP: Hessian-Vector Product
-
+This module implements a Sequential Quadratic Programming (SQP) solver
+with an active set strategy, using Preconditioned Conjugate Gradient (PCG)
+for solving the quadratic subproblems and Projected Line Search (PLS)
+for handling box constraints.
+The solver is designed for problems with input bounds and supports
+Hessian-vector products (HVP) for efficient optimization.
 """
 import numpy as np
 
@@ -34,6 +35,12 @@ LAMBDA_FACTOR_DEFAULT = 1e-6
 
 
 class SQP_ActiveSet_PCG_PLS:
+    """
+    Sequential Quadratic Programming (SQP) solver with Active Set,
+    Preconditioned Conjugate Gradient (PCG), and Projected Line Search
+    (PLS) for box-constrained optimization problems.
+    """
+
     def __init__(
             self,
             U_size: int,

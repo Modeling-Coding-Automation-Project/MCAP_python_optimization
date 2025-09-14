@@ -5,7 +5,6 @@ import sympy as sp
 import importlib
 from dataclasses import dataclass
 
-from external_libraries.MCAP_python_control.python_control.control_deploy import ControlDeploy
 from external_libraries.MCAP_python_control.python_control.control_deploy import ExpressionDeploy
 
 STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_state_function.py"
@@ -22,7 +21,7 @@ HESSIAN_F_UU_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hessian_f_uu.py"
 HESSIAN_H_XX_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_hessian_h_xx.py"
 
 
-def extract_parameters_from_state_equations(
+def extract_parameters_from_state_space_equations(
         f: sp.Matrix,
         h: sp.Matrix,
         x_syms: sp.Matrix,
@@ -109,7 +108,7 @@ class SQP_CostMatrices_NMPC:
         self.f = state_equation_vector
         self.h = measurement_equation_vector
 
-        self.Parameters = extract_parameters_from_state_equations(
+        self.Parameters = extract_parameters_from_state_space_equations(
             f=self.f,
             h=self.h,
             x_syms=self.x_syms,
@@ -202,7 +201,9 @@ class SQP_CostMatrices_NMPC:
         self.reference_trajectory = None
 
     def create_state_measurement_equation_numpy_code(
-            self, file_name_without_ext: str = None):
+            self,
+            file_name_without_ext: str = None
+    ):
         state_function_code_file_name = STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
         measurement_function_code_file_name = MEASUREMENT_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
 
@@ -230,8 +231,9 @@ class SQP_CostMatrices_NMPC:
             measurement_function_code_file_name
 
     def create_jacobians_numpy_code(
-            self, file_name_without_ext: str = None):
-
+        self,
+        file_name_without_ext: str = None
+    ):
         state_jacobian_x_code_file_name = STATE_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX
         state_jacobian_u_code_file_name = STATE_JACOBIAN_U_NUMPY_CODE_FILE_NAME_SUFFIX
         measurement_jacobian_x_code_file_name = MEASUREMENT_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX
@@ -326,8 +328,9 @@ class SQP_CostMatrices_NMPC:
         return Hh_xx_matrix
 
     def create_hessian_numpy_code(
-            self, file_name_without_ext: str = None):
-
+        self,
+        file_name_without_ext: str = None
+    ):
         hf_xx_code_file_name = HESSIAN_F_XX_NUMPY_CODE_FILE_NAME_SUFFIX
         hf_xu_code_file_name = HESSIAN_F_XU_NUMPY_CODE_FILE_NAME_SUFFIX
         hf_ux_code_file_name = HESSIAN_F_UX_NUMPY_CODE_FILE_NAME_SUFFIX
@@ -383,7 +386,10 @@ class SQP_CostMatrices_NMPC:
             hf_uu_code_file_name, \
             hh_xx_code_file_name
 
-    def get_function_caller_from_python_file(self, file_name: str):
+    def get_function_caller_from_python_file(
+            self,
+            file_name: str
+    ):
         module_name = os.path.splitext(os.path.basename(file_name))[0]
         module = importlib.import_module(module_name)
 
@@ -413,7 +419,7 @@ class SQP_CostMatrices_NMPC:
 
         X_next = self.state_function_code_file_function(X, U, Parameters)
 
-        return X_next.reshape((self.nx,))
+        return X_next.reshape((self.nx, 1))
 
     def calculate_measurement_function(
             self,
@@ -426,7 +432,7 @@ class SQP_CostMatrices_NMPC:
 
         Y = self.measurement_function_code_file_function(X, U, Parameters)
 
-        return Y.reshape((self.ny,))
+        return Y.reshape((self.ny, 1))
 
     def calculate_state_jacobian_x(
             self,
@@ -483,8 +489,10 @@ class SQP_CostMatrices_NMPC:
 
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
+        lam_next = lam_next.reshape((self.nx, 1))
+        dX = dX.reshape((self.nx, 1))
 
-        out = np.zeros(self.nx, dtype=float)
+        out = np.zeros((self.nx, 1), dtype=float)
 
         Hf_xx = self.hf_xx_code_file_function(
             X, U, Parameters)
@@ -493,8 +501,8 @@ class SQP_CostMatrices_NMPC:
             for j in range(self.nx):
                 acc = 0.0
                 for k in range(self.nx):
-                    acc += Hf_xx[i * self.nx + j, k] * dX[k]
-                out[j] += lam_next[i] * acc
+                    acc += Hf_xx[i * self.nx + j, k] * dX[k, 0]
+                out[j, 0] += lam_next[i] * acc
 
         return out
 
@@ -510,8 +518,10 @@ class SQP_CostMatrices_NMPC:
 
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
+        lam_next = lam_next.reshape((self.nx, 1))
+        dU = dU.reshape((self.nu, 1))
 
-        out = np.zeros(self.nx, dtype=float)
+        out = np.zeros((self.nx, 1), dtype=float)
 
         Hf_xu = self.hf_xu_code_file_function(
             X, U, Parameters)
@@ -523,8 +533,8 @@ class SQP_CostMatrices_NMPC:
                 for j in range(self.nx):
                     acc = 0.0
                     for k in range(self.nu):
-                        acc += Hf_xu[i * self.nx + j, k] * dU[k]
-                    out[j] += lam_next[i] * acc
+                        acc += Hf_xu[i * self.nx + j, k] * dU[k, 0]
+                    out[j, 0] += lam_next[i] * acc
 
         return out
 
@@ -540,8 +550,10 @@ class SQP_CostMatrices_NMPC:
 
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
+        lam_next = lam_next.reshape((self.nx, 1))
+        dX = dX.reshape((self.nx, 1))
 
-        out = np.zeros(self.nu, dtype=float)
+        out = np.zeros((self.nu, 1), dtype=float)
 
         Hf_ux = self.hf_ux_code_file_function(
             X, U, Parameters)
@@ -553,8 +565,8 @@ class SQP_CostMatrices_NMPC:
                 for k in range(self.nu):
                     acc = 0.0
                     for j in range(self.nx):
-                        acc += Hf_ux[i * self.nu + k, j] * dX[j]
-                    out[k] += lam_next[i] * acc
+                        acc += Hf_ux[i * self.nu + k, j] * dX[j, 0]
+                    out[k, 0] += lam_next[i] * acc
 
         return out
 
@@ -570,8 +582,10 @@ class SQP_CostMatrices_NMPC:
 
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
+        lam_next = lam_next.reshape((self.nx, 1))
+        dU = dU.reshape((self.nu, 1))
 
-        out = np.zeros(self.nu, dtype=float)
+        out = np.zeros((self.nu, 1), dtype=float)
 
         Hf_uu = self.hf_uu_code_file_function(
             X, U, Parameters)
@@ -579,12 +593,12 @@ class SQP_CostMatrices_NMPC:
         if self.nu == 0:
             pass
         else:
-            for i in range(self.nx):            # f_i の添字
-                for j in range(self.nu):        # 出力（入力方向）の添字
+            for i in range(self.nx):
+                for j in range(self.nu):
                     acc = 0.0
-                    for k in range(self.nu):    # du を掛ける列の添字（入力方向）
-                        acc += Hf_uu[i * self.nu + j, k] * dU[k]
-                    out[j] += lam_next[i] * acc
+                    for k in range(self.nu):
+                        acc += Hf_uu[i * self.nu + j, k] * dU[k, 0]
+                    out[j, 0] += lam_next[i] * acc
 
         return out
 
@@ -599,8 +613,10 @@ class SQP_CostMatrices_NMPC:
 
         X = X.reshape((self.nx, 1))
         U = np.zeros((self.nu, 1))
+        w = w.reshape((self.ny, 1))
+        dX = dX.reshape((self.nx, 1))
 
-        out = np.zeros(self.nx, dtype=float)
+        out = np.zeros((self.nx, 1), dtype=float)
 
         Hh_xx = self.hh_xx_code_file_function(
             X, U, Parameters)
@@ -609,8 +625,8 @@ class SQP_CostMatrices_NMPC:
             for j in range(self.nx):
                 acc = 0.0
                 for k in range(self.nx):
-                    acc += Hh_xx[i * self.nx + j, k] * dX[k]
-                out[j] += w[i] * acc
+                    acc += Hh_xx[i * self.nx + j, k] * dX[k, 0]
+                out[j, 0] += w[i] * acc
 
         return out
 
@@ -620,11 +636,11 @@ class SQP_CostMatrices_NMPC:
         U: np.ndarray,
         Parameters
     ):
-        X = np.zeros((self.Np + 1, self.nx))
-        X[0] = X_initial
+        X = np.zeros((self.nx, self.Np + 1))
+        X[:, 0] = X_initial.flatten()
         for k in range(self.Np):
-            X[k + 1] = self.calculate_state_function(
-                X[k], U[k], Parameters)
+            X[:, k + 1] = self.calculate_state_function(
+                X[:, k], U[:, k], Parameters).flatten()
 
         return X
 
@@ -637,39 +653,41 @@ class SQP_CostMatrices_NMPC:
         # thus Parameters and Reference trajectory must be changed beforehand.
 
         X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
-        Y = np.zeros((X.shape[0], self.Qy.shape[0]))
+        Y = np.zeros((self.ny, self.Np + 1))
         for k in range(X.shape[0]):
-            Y[k] = self.calculate_measurement_function(
-                X[k], self.state_space_parameters)
+            Y[:, k] = self.calculate_measurement_function(
+                X[:, k], self.state_space_parameters).flatten()
 
         J = 0.0
         for k in range(self.Np):
-            e_y_r = Y[k] - self.reference_trajectory[k]
-            J += X[k] @ self.Qx @ X[k] + \
-                e_y_r @ self.Qy @ e_y_r + U[k] @ self.R @ U[k]
+            e_y_r = Y[:, k] - self.reference_trajectory[:, k]
+            J += X[:, k].T @ self.Qx @ X[:, k] + \
+                e_y_r.T @ self.Qy @ e_y_r + U[:, k].T @ self.R @ U[:, k]
 
-        eN_y_r = Y[self.Np] - self.reference_trajectory[self.Np]
-        J += X[self.Np] @ self.Px @ X[self.Np] + eN_y_r @ self.Py @ eN_y_r
+        eN_y_r = Y[:, self.Np] - self.reference_trajectory[:, self.Np]
+        J += X[:, self.Np].T @ self.Px @ X[:, self.Np] + \
+            eN_y_r.T @ self.Py @ eN_y_r
 
         # terminal adjoint
         C_N = self.calculate_measurement_jacobian_x(
-            X[self.Np], self.state_space_parameters)
-        lam_next = (2 * self.Px) @ X[self.Np] + C_N.T @ (2 * self.Py @ eN_y_r)
+            X[:, self.Np], self.state_space_parameters)
+        lam_next = (2.0 * self.Px) @ X[:, self.Np] + \
+            C_N.T @ (2.0 * self.Py @ eN_y_r)
 
         grad = np.zeros_like(U)
         for k in reversed(range(self.Np)):
             Cx_k = self.calculate_measurement_jacobian_x(
-                X[k], self.state_space_parameters)
-            ek_y = Y[k] - self.reference_trajectory[k]
+                X[:, k], self.state_space_parameters)
+            ek_y = Y[:, k] - self.reference_trajectory[:, k]
 
             A_k = self.calculate_state_jacobian_x(
-                X[k], U[k], self.state_space_parameters)
+                X[:, k], U[:, k], self.state_space_parameters)
             B_k = self.calculate_state_jacobian_u(
-                X[k], U[k], self.state_space_parameters)
+                X[:, k], U[:, k], self.state_space_parameters)
 
-            grad[k] = 2 * self.R @ U[k] + B_k.T @ lam_next
+            grad[:, k] = 2.0 * self.R @ U[:, k] + B_k.T @ lam_next
 
-            lam_next = 2 * self.Qx @ X[k] + 2 * \
+            lam_next = 2.0 * self.Qx @ X[:, k] + 2.0 * \
                 Cx_k.T @ (self.Qy @ ek_y) + A_k.T @ lam_next
 
         return J, grad
@@ -680,91 +698,95 @@ class SQP_CostMatrices_NMPC:
             U: np.ndarray,
             V: np.ndarray
     ):
-
         # --- 1) forward states
         X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
-        Y = np.zeros((X.shape[0], self.Qy.shape[0]))
-        for k in range(X.shape[0]):
-            Y[k] = self.calculate_measurement_function(
-                X[k], self.state_space_parameters)
+        Y = np.zeros((self.ny, self.Np + 1))
+        for k in range(self.Np + 1):
+            Y[:, k] = self.calculate_measurement_function(
+                X[:, k], self.state_space_parameters).flatten()
         yN = self.calculate_measurement_function(
-            X[self.Np], self.state_space_parameters)
+            X[:, self.Np], self.state_space_parameters)
 
-        eN_y = yN - self.reference_trajectory[self.Np]
+        eN_y = yN - self.reference_trajectory[:, self.Np]
 
         # --- 2) first-order adjoint (costate lambda) with output terms
-        lam = np.zeros((self.Np + 1, self.nx))
+        lam = np.zeros((self.nx, self.Np + 1))
         Cx_N = self.calculate_measurement_jacobian_x(
-            X[self.Np], self.state_space_parameters)
-        lam[self.Np] = 2 * self.Px @ X[self.Np]
+            X[:, self.Np], self.state_space_parameters)
+        lam[:, self.Np] = 2.0 * self.Px @ X[:, self.Np]
 
         for k in range(self.Np - 1, -1, -1):
             A_k = self.calculate_state_jacobian_x(
-                X[k], U[k], self.state_space_parameters)
+                X[:, k], U[:, k], self.state_space_parameters)
             Cx_k = self.calculate_measurement_jacobian_x(
-                X[k], self.state_space_parameters)
-            ek_y = Y[k] - self.reference_trajectory[k]
-            lam[k] = 2 * self.Qx @ X[k] + Cx_k.T @ (2 * self.Qy @ ek_y) + \
-                A_k.T @ lam[k + 1]
+                X[:, k], self.state_space_parameters)
+            ek_y = Y[:, k] - self.reference_trajectory[:, k]
+            lam[:, k] = 2.0 * self.Qx @ X[:, k] + Cx_k.T @ (2.0 * self.Qy @ ek_y) + \
+                A_k.T @ lam[:, k + 1]
 
         # --- 3) forward directional state: delta_x ---
-        dx = np.zeros((self.Np + 1, self.nx))
+        dx = np.zeros((self.nx, self.Np + 1))
         for k in range(self.Np):
             A_k = self.calculate_state_jacobian_x(
-                X[k], U[k], self.state_space_parameters)
+                X[:, k], U[:, k], self.state_space_parameters)
             B_k = self.calculate_state_jacobian_u(
-                X[k], U[k], self.state_space_parameters)
-            dx[k + 1] = A_k @ dx[k] + B_k @ V[k]
+                X[:, k], U[:, k], self.state_space_parameters)
+            dx[:, k + 1] = A_k @ dx[:, k] + B_k @ V[:, k]
 
         # --- 4) backward second-order adjoint ---
-        d_lambda = np.zeros((self.Np + 1, self.nx))
+        d_lambda = np.zeros((self.nx, self.Np + 1))
 
         # Match the treatment of the terminal term phi_xx = l_xx(X_N,·) (currently 2P)
         # Additionally, contributions from pure second-order output and second derivatives of output
-        d_lambda[self.Np] = self.l_xx(X[self.Np], None) @ dx[self.Np] + \
-            Cx_N.T @ (2 * self.Py @ (Cx_N @ dx[self.Np])) + \
+        l_xx_dx = self.l_xx(X[:, self.Np], None) @ dx[:, self.Np]
+        CX_N_T_Py_Cx_N_dx = Cx_N.T @ (2.0 * self.Py @ (Cx_N @ dx[:, self.Np]))
+        d_lambda[:, self.Np] += \
+            l_xx_dx.flatten() + \
+            CX_N_T_Py_Cx_N_dx.flatten() + \
             self.hxx_lambda_contract(
-                X[self.Np], self.state_space_parameters, 2 * self.Py @ eN_y, dx[self.Np])
+            X[:, self.Np],
+            self.state_space_parameters, 2.0 * self.Py @ eN_y,
+            dx[:, self.Np]).flatten()
 
         Hu = np.zeros_like(U)
         for k in range(self.Np - 1, -1, -1):
             A_k = self.calculate_state_jacobian_x(
-                X[k], U[k], self.state_space_parameters)
+                X[:, k], U[:, k], self.state_space_parameters)
             B_k = self.calculate_state_jacobian_u(
-                X[k], U[k], self.state_space_parameters)
+                X[:, k], U[:, k], self.state_space_parameters)
             Cx_k = self.calculate_measurement_jacobian_x(
-                X[k], self.state_space_parameters)
-            ek_y = Y[k] - self.reference_trajectory[k]
+                X[:, k], self.state_space_parameters)
+            ek_y = Y[:, k] - self.reference_trajectory[:, k]
 
             # dlambda_k
             term_xx = self.fx_xx_lambda_contract(
-                X[k], U[k], self.state_space_parameters, lam[k + 1], dx[k])
+                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
             term_xu = self.fx_xu_lambda_contract(
-                X[k], U[k], self.state_space_parameters, lam[k + 1], V[k])
+                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], V[:, k])
 
-            d_lambda[k] = (
-                self.l_xx(X[k], U[k]) @ dx[k] +
-                self.l_xu(X[k], U[k]) @ V[k] +
-                A_k.T @ d_lambda[k + 1] +
-                Cx_k.T @ (2 * self.Qy @ (Cx_k @ dx[k])) +
+            d_lambda[:, k] = \
+                (self.l_xx(X[:, k], U[:, k]) @ dx[:, k]).flatten() + \
+                (self.l_xu(X[:, k], U[:, k]) @ V[:, k]).flatten() + \
+                (A_k.T @ d_lambda[:, k + 1]).flatten() + \
+                (Cx_k.T @ (2 * self.Qy @ (Cx_k @ dx[:, k]))).flatten() + \
                 self.hxx_lambda_contract(
-                    X[k], self.state_space_parameters, 2 * self.Qy @ ek_y, dx[k]) +
-                term_xx + term_xu
-            )
+                    X[:, k],
+                    self.state_space_parameters,
+                    2 * self.Qy @ ek_y, dx[:, k]).flatten() + \
+                term_xx.flatten() + term_xu.flatten()
 
             # (HV)_k:
             #   2R V + B^T dlambda_{k+1} + second-order terms from dynamics
             #   (Cu=0 -> no direct contribution from output terms)
             term_ux = self.fu_xx_lambda_contract(
-                X[k], U[k], self.state_space_parameters, lam[k + 1], dx[k])
+                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
             term_uu = self.fu_uu_lambda_contract(
-                X[k], U[k], self.state_space_parameters, lam[k + 1], V[k])
+                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], V[:, k])
 
-            Hu[k] = (
-                self.l_uu(X[k], U[k]) @ V[k] +
-                self.l_ux(X[k], U[k]) @ dx[k] +
-                B_k.T @ d_lambda[k + 1] +
-                term_ux + term_uu
-            )
+            Hu[:, k] = \
+                (self.l_uu(X[:, k], U[:, k]) @ V[:, k]).flatten() + \
+                (self.l_ux(X[:, k], U[:, k]) @ dx[:, k]).flatten() + \
+                (B_k.T @ d_lambda[:, k + 1]).flatten() + \
+                term_ux.flatten() + term_uu.flatten()
 
         return Hu
