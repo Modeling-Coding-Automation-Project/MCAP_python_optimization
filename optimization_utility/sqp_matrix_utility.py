@@ -263,6 +263,50 @@ class SQP_CostMatrices_NMPC:
         self.state_space_parameters = None
         self.reference_trajectory = None
 
+    def set_U_min(self, U_min: np.ndarray):
+        """
+        Set the minimum input constraint matrix.
+        Args:
+            U_min (np.ndarray): Minimum input values of shape (nu, 1).
+        """
+        if U_min.shape[0] != self.nu or U_min.shape[1] != 1:
+            raise ValueError(
+                f"U_min must have shape ({self.nu}, 1), got {U_min.shape}")
+        self.U_min_matrix = np.tile(U_min, (1, self.Np))
+
+    def set_U_max(self, U_max: np.ndarray):
+        """
+        Set the maximum input constraint matrix.
+        Args:
+            U_max (np.ndarray): Maximum input values of shape (nu, 1).
+        """
+        if U_max.shape[0] != self.nu or U_max.shape[1] != 1:
+            raise ValueError(
+                f"U_max must have shape ({self.nu}, 1), got {U_max.shape}")
+        self.U_max_matrix = np.tile(U_max, (1, self.Np))
+
+    def set_Y_min(self, Y_min: np.ndarray):
+        """
+        Set the minimum output constraint matrix.
+        Args:
+            Y_min (np.ndarray): Minimum output values of shape (ny, 1).
+        """
+        if Y_min.shape[0] != self.ny or Y_min.shape[1] != 1:
+            raise ValueError(
+                f"Y_min must have shape ({self.ny}, 1), got {Y_min.shape}")
+        self.Y_min_matrix = np.tile(Y_min, (1, self.Np))
+
+    def set_Y_max(self, Y_max: np.ndarray):
+        """
+        Set the maximum output constraint matrix.
+        Args:
+            Y_max (np.ndarray): Maximum output values of shape (ny, 1).
+        """
+        if Y_max.shape[0] != self.ny or Y_max.shape[1] != 1:
+            raise ValueError(
+                f"Y_max must have shape ({self.ny}, 1), got {Y_max.shape}")
+        self.Y_max_matrix = np.tile(Y_max, (1, self.Np))
+
     def create_state_measurement_equation_numpy_code(
             self,
             file_name_without_ext: str = None
