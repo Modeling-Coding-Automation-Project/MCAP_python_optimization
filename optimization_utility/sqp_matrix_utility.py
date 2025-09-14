@@ -673,3 +673,98 @@ class SQP_CostMatrices_NMPC:
                 Cx_k.T @ (self.Qy @ ek_y) + A_k.T @ lam_next
 
         return J, grad
+
+    def hvp_analytic(
+            self,
+            X_initial: np.ndarray,
+            U: np.ndarray,
+            V: np.ndarray
+    ):
+
+        # --- 1) forward states
+        X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
+        Y = np.zeros((X.shape[0], self.Qy.shape[0]))
+        for k in range(X.shape[0]):
+            Y[k] = self.calculate_measurement_function(
+                X[k], self.state_space_parameters)
+        yN = self.calculate_measurement_function(
+            X[self.Np], self.state_space_parameters)
+
+        eN_y = yN - self.reference_trajectory[self.Np]
+
+        # --- 2) first-order adjoint (costate lambda) with output terms
+        lam = np.zeros((self.Np + 1, self.nx))
+        Cx_N = self.calculate_measurement_jacobian_x(
+            X[self.Np], self.state_space_parameters)
+        lam[self.Np] = 2 * self.Px @ X[self.Np]
+
+        for k in range(self.Np - 1, -1, -1):
+            A_k = self.calculate_state_jacobian_x(
+                X[k], U[k], self.state_space_parameters)
+            Cx_k = self.calculate_measurement_jacobian_x(
+                X[k], self.state_space_parameters)
+            ek_y = Y[k] - self.reference_trajectory[k]
+            lam[k] = 2 * self.Qx @ X[k] + Cx_k.T @ (2 * self.Qy @ ek_y) + \
+                A_k.T @ lam[k + 1]
+
+        # --- 3) forward directional state: delta_x ---
+        dx = np.zeros((self.Np + 1, self.nx))
+        for k in range(self.Np):
+            A_k = self.calculate_state_jacobian_x(
+                X[k], U[k], self.state_space_parameters)
+            B_k = self.calculate_state_jacobian_u(
+                X[k], U[k], self.state_space_parameters)
+            dx[k + 1] = A_k @ dx[k] + B_k @ V[k]
+
+        # --- 4) backward second-order adjoint ---
+        d_lambda = np.zeros((self.Np + 1, self.nx))
+
+        # Match the treatment of the terminal term phi_xx = l_xx(X_N,·) (currently 2P)
+        # Additionally, contributions from pure second-order output and second derivatives of output
+        d_lambda[self.Np] = self.l_xx(X[self.Np], None) @ dx[self.Np] + \
+            Cx_N.T @ (2 * self.Py @ (Cx_N @ dx[self.Np])) + \
+            self.hxx_lambda_contract(
+                X[self.Np], self.state_space_parameters, 2 * self.Py @ eN_y, dx[self.Np])
+
+        Hu = np.zeros_like(U)
+        for k in range(self.Np - 1, -1, -1):
+            A_k = self.calculate_state_jacobian_x(
+                X[k], U[k], self.state_space_parameters)
+            B_k = self.calculate_state_jacobian_u(
+                X[k], U[k], self.state_space_parameters)
+            Cx_k = self.calculate_measurement_jacobian_x(
+                X[k], self.state_space_parameters)
+            ek_y = Y[k] - self.reference_trajectory[k]
+
+            # dlambda_k
+            term_xx = self.fx_xx_lambda_contract(
+                X[k], U[k], self.state_space_parameters, lam[k + 1], dx[k])
+            term_xu = self.fx_xu_lambda_contract(
+                X[k], U[k], self.state_space_parameters, lam[k + 1], V[k])
+
+            d_lambda[k] = (
+                self.l_xx(X[k], U[k]) @ dx[k] +
+                self.l_xu(X[k], U[k]) @ V[k] +
+                A_k.T @ d_lambda[k + 1] +
+                Cx_k.T @ (2 * self.Qy @ (Cx_k @ dx[k])) +
+                self.hxx_lambda_contract(
+                    X[k], self.state_space_parameters, 2 * self.Qy @ ek_y, dx[k]) +
+                term_xx + term_xu
+            )
+
+            # (HV)_k:
+            #   2R V + B^T dlambda_{k+1} + second-order terms from dynamics
+            #   (Cu=0 -> no direct contribution from output terms)
+            term_ux = self.fu_xx_lambda_contract(
+                X[k], U[k], self.state_space_parameters, lam[k + 1], dx[k])
+            term_uu = self.fu_uu_lambda_contract(
+                X[k], U[k], self.state_space_parameters, lam[k + 1], V[k])
+
+            Hu[k] = (
+                self.l_uu(X[k], U[k]) @ V[k] +
+                self.l_ux(X[k], U[k]) @ dx[k] +
+                B_k.T @ d_lambda[k + 1] +
+                term_ux + term_uu
+            )
+
+        return Hu

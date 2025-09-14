@@ -89,111 +89,7 @@ sqp_cost_matrices = SQP_CostMatrices_NMPC(
 )
 
 
-def simulate_trajectory(X_initial, U):
-    X = np.zeros((N + 1, nx))
-    X[0] = X_initial
-    for k in range(N):
-        X[k + 1] = sqp_cost_matrices.calculate_state_function(
-            X[k], U[k], state_space_parameters)
-
-    return X
-
-
-# --- Analytic HVP using 2nd-order adjoints ---
-
-
-def hvp_analytic(X_initial, U, V):
-
-    # --- 1) forward states
-    X = simulate_trajectory(X_initial, U)
-    Y = np.zeros((X.shape[0], Qy.shape[0]))
-    for k in range(X.shape[0]):
-        Y[k] = sqp_cost_matrices.calculate_measurement_function(
-            X[k], state_space_parameters)
-    yN = sqp_cost_matrices.calculate_measurement_function(
-        X[N], state_space_parameters)
-
-    eN_y = yN - reference_trajectory[N]
-
-    # --- 2) first-order adjoint (costate lambda) with output terms
-    lam = np.zeros((N + 1, nx))
-    Cx_N = sqp_cost_matrices.calculate_measurement_jacobian_x(
-        X[N], state_space_parameters)
-    lam[N] = 2 * Px @ X[N]
-
-    for k in range(N - 1, -1, -1):
-        A_k = sqp_cost_matrices.calculate_state_jacobian_x(
-            X[k], U[k], state_space_parameters)
-        Cx_k = sqp_cost_matrices.calculate_measurement_jacobian_x(
-            X[k], state_space_parameters)
-        ek_y = Y[k] - reference_trajectory[k]
-        lam[k] = 2 * Qx @ X[k] + Cx_k.T @ (2 * Qy @ ek_y) + \
-            A_k.T @ lam[k + 1]
-
-    # --- 3) forward directional state: delta_x ---
-    dx = np.zeros((N + 1, nx))
-    for k in range(N):
-        A_k = sqp_cost_matrices.calculate_state_jacobian_x(
-            X[k], U[k], state_space_parameters)
-        B_k = sqp_cost_matrices.calculate_state_jacobian_u(
-            X[k], U[k], state_space_parameters)
-        dx[k + 1] = A_k @ dx[k] + B_k @ V[k]
-
-    # --- 4) backward second-order adjoint ---
-    d_lambda = np.zeros((N + 1, nx))
-
-    # Match the treatment of the terminal term phi_xx = l_xx(X_N,·) (currently 2P)
-    # Additionally, contributions from pure second-order output and second derivatives of output
-    d_lambda[N] = sqp_cost_matrices.l_xx(X[N], None) @ dx[N] + \
-        Cx_N.T @ (2 * Py @ (Cx_N @ dx[N])) + \
-        sqp_cost_matrices.hxx_lambda_contract(
-            X[N], state_space_parameters, 2 * Py @ eN_y, dx[N])
-
-    Hu = np.zeros_like(U)
-    for k in range(N - 1, -1, -1):
-        A_k = sqp_cost_matrices.calculate_state_jacobian_x(
-            X[k], U[k], state_space_parameters)
-        B_k = sqp_cost_matrices.calculate_state_jacobian_u(
-            X[k], U[k], state_space_parameters)
-        Cx_k = sqp_cost_matrices.calculate_measurement_jacobian_x(
-            X[k], state_space_parameters)
-        ek_y = Y[k] - reference_trajectory[k]
-
-        # dlambda_k
-        term_xx = sqp_cost_matrices.fx_xx_lambda_contract(
-            X[k], U[k], state_space_parameters, lam[k + 1], dx[k])
-        term_xu = sqp_cost_matrices.fx_xu_lambda_contract(
-            X[k], U[k], state_space_parameters, lam[k + 1], V[k])
-
-        d_lambda[k] = (
-            sqp_cost_matrices.l_xx(X[k], U[k]) @ dx[k] +
-            sqp_cost_matrices.l_xu(X[k], U[k]) @ V[k] +
-            A_k.T @ d_lambda[k + 1] +
-            Cx_k.T @ (2 * Qy @ (Cx_k @ dx[k])) +
-            sqp_cost_matrices.hxx_lambda_contract(
-                X[k], state_space_parameters, 2 * Qy @ ek_y, dx[k]) +
-            term_xx + term_xu
-        )
-
-        # (HV)_k:
-        #   2R V + B^T dlambda_{k+1} + second-order terms from dynamics
-        #   (Cu=0 -> no direct contribution from output terms)
-        term_ux = sqp_cost_matrices.fu_xx_lambda_contract(
-            X[k], U[k], state_space_parameters, lam[k + 1], dx[k])
-        term_uu = sqp_cost_matrices.fu_uu_lambda_contract(
-            X[k], U[k], state_space_parameters, lam[k + 1], V[k])
-
-        Hu[k] = (
-            sqp_cost_matrices.l_uu(X[k], U[k]) @ V[k] +
-            sqp_cost_matrices.l_ux(X[k], U[k]) @ dx[k] +
-            B_k.T @ d_lambda[k + 1] +
-            term_ux + term_uu
-        )
-    return Hu
-
-
 # --- Example Execution ---
-
 sqp_cost_matrices.state_space_parameters = state_space_parameters
 sqp_cost_matrices.reference_trajectory = reference_trajectory
 
@@ -217,7 +113,7 @@ solver.set_solver_max_iteration(30)
 U_opt, J_opt = solver.solve(
     U_initial=U_initial,
     cost_and_gradient_function=sqp_cost_matrices.compute_cost_and_gradient,
-    hvp_function=hvp_analytic,
+    hvp_function=sqp_cost_matrices.hvp_analytic,
     X_initial=X_initial,
     u_min=u_min_mat,
     u_max=u_max_mat,
