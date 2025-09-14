@@ -1,116 +1,17 @@
 """
 File: qp_active_set.py
 
-This module implements a Quadratic Programming (QP) solver using the Active Set method. 
+This module implements a Quadratic Programming (QP) solver using the Active Set method.
 It provides classes to manage the set of active constraints and to solve QP problems of the form:
     minimize (1/2) X^T E X - X^T L  subject to  M X <= gamma,
 where E, L, M, and gamma are numpy arrays representing the problem parameters.
 """
 import numpy as np
 
+from python_optimization.active_set import ActiveSet
+
 MAX_ITERATION_DEFAULT = 100
 TOL_DEFAULT = 1e-8
-
-
-class ActiveSet:
-    """
-    A class that manages an active set of constraints with a
-    fixed number of constraints, ensuring safe management of the active set information.
-
-    Attributes
-    ----------
-    active_flags : np.ndarray of bool
-        An array indicating whether each constraint is active (length: number of constraints).
-    active_indices : np.ndarray of int
-        An array storing the indices of active constraints
-        (length: number of constraints, unused parts are set to 0, etc.).
-    number_of_active : int
-        The current number of active constraints.
-    """
-
-    def __init__(self, number_of_constraints: int):
-        self.number_of_constraints = number_of_constraints
-
-        self._active_flags = np.zeros(number_of_constraints, dtype=bool)
-        self._active_indices = np.zeros(number_of_constraints, dtype=int)
-        self._number_of_active = 0
-
-    def push_active(self, index: int):
-        """
-        Marks the constraint at the specified index as active and adds it to the list of active constraints.
-
-        Args:
-            index (int): The index of the constraint to activate.
-
-        Notes:
-            - If the constraint at the given index is already active, this method does nothing.
-            - Updates the internal flags and indices to reflect the activation.
-        """
-        if not self._active_flags[index]:
-            self._active_flags[index] = True
-            self._active_indices[self._number_of_active] = index
-            self._number_of_active += 1
-
-    def push_inactive(self, index: int):
-        """
-        Marks the constraint at the specified index as inactive and removes it from the list of active constraints.
-        Args:
-            index (int): The index of the constraint to deactivate.
-        Notes:
-            - If the constraint at the given index is not active, this method does nothing.
-            - Updates the internal flags and indices to reflect the deactivation.
-        """
-        if self._active_flags[index]:
-            self._active_flags[index] = False
-            found = False
-            for i in range(self._number_of_active):
-                if not found and self._active_indices[i] == index:
-                    found = True
-                if found and i < self._number_of_active - 1:
-                    self._active_indices[i] = self._active_indices[i + 1]
-            if found:
-                self._active_indices[self._number_of_active - 1] = 0
-                self._number_of_active -= 1
-
-    def get_active(self, index: int):
-        """
-        Returns the index of the active constraint at the specified position in the active set.
-        Args:
-            index (int): The position in the active set to retrieve the index from.
-        Returns:
-            int: The index of the active constraint at the specified position.
-        Raises:
-            IndexError: If the index is out of bounds for the active set.
-        """
-        if index < 0 or index >= self._number_of_active:
-            raise IndexError("Index out of bounds for active set.")
-        return self._active_indices[index]
-
-    def get_active_indices(self):
-        """
-        Returns the indices of all currently active constraints.
-        Returns:
-            np.ndarray: An array of indices of active constraints.
-        """
-        return self._active_indices
-
-    def get_number_of_active(self):
-        """
-        Returns the number of currently active constraints.
-        Returns:
-            int: The number of active constraints.
-        """
-        return self._number_of_active
-
-    def is_active(self, index: int):
-        """
-        Checks if the constraint at the specified index is currently active.
-        Args:
-            index (int): The index of the constraint to check.
-        Returns:
-            bool: True if the constraint is active, False otherwise.
-        """
-        return self._active_flags[index]
 
 
 class QP_ActiveSetSolver:

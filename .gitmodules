@@ -1,0 +1,3 @@
+[submodule "external_libraries/MCAP_python_control"]
+	path = external_libraries/MCAP_python_control
+	url = https://github.com/Modeling-Coding-Automation-Project/MCAP_python_control.git

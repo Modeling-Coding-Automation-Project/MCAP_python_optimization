@@ -3,7 +3,6 @@ This script demonstrates how to solve a quadratic programming (QP) problem using
 It sets up a simple QP with two variables and four linear inequality constraints, then solves for the optimal solution using the active set method.
 """
 import os
-
 import sys
 sys.path.append(os.getcwd())
 

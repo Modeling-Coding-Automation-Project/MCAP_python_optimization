@@ -3,7 +3,6 @@ This script demonstrates how to solve a quadratic programming (QP) problem using
 It sets up a QP problem with a quadratic cost matrix, a linear term, constraint matrix, and constraint bounds, then solves for the optimal variable vector.
 """
 import os
-
 import sys
 sys.path.append(os.getcwd())
 
