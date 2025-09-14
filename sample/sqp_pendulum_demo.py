@@ -98,48 +98,6 @@ def simulate_trajectory(X_initial, U):
 
     return X
 
-# --- Cost and gradient (first-order adjoint) ---
-
-
-def compute_cost_and_gradient(
-        X_initial: np.ndarray,
-        U: np.ndarray
-):
-    X = simulate_trajectory(X_initial, U)
-    Y = np.zeros((X.shape[0], Qy.shape[0]))
-    for k in range(X.shape[0]):
-        Y[k] = sqp_cost_matrices.calculate_measurement_function(
-            X[k], state_space_parameters)
-
-    J = 0.0
-    for k in range(N):
-        e_y_r = Y[k] - reference_trajectory[k]
-        J += X[k] @ Qx @ X[k] + e_y_r @ Qy @ e_y_r + U[k] @ R @ U[k]
-
-    eN_y_r = Y[N] - reference_trajectory[N]
-    J += X[N] @ Px @ X[N] + eN_y_r @ Py @ eN_y_r
-
-    # terminal adjoint
-    C_N = sqp_cost_matrices.calculate_measurement_jacobian_x(
-        X[N], state_space_parameters)
-    lam_next = (2 * Px) @ X[N] + C_N.T @ (2 * Py @ eN_y_r)
-
-    grad = np.zeros_like(U)
-    for k in reversed(range(N)):
-        Cx_k = sqp_cost_matrices.calculate_measurement_jacobian_x(
-            X[k], state_space_parameters)
-        ek_y = Y[k] - reference_trajectory[k]
-
-        A_k = sqp_cost_matrices.calculate_state_jacobian_x(
-            X[k], U[k], state_space_parameters)
-        B_k = sqp_cost_matrices.calculate_state_jacobian_u(
-            X[k], U[k], state_space_parameters)
-
-        grad[k] = 2 * R @ U[k] + B_k.T @ lam_next
-
-        lam_next = 2 * Qx @ X[k] + 2 * Cx_k.T @ (Qy @ ek_y) + A_k.T @ lam_next
-
-    return J, grad
 
 # --- Analytic HVP using 2nd-order adjoints ---
 
