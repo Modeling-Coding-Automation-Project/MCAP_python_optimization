@@ -41,7 +41,7 @@ def create_plant_model():
 nx = 2   # [theta, omega]
 nu = 1   # scalar input
 ny = 1   # scalar output (theta)
-N = 20   # horizon
+N = 20   # Prediction Horizon
 
 dt = 0.05
 
