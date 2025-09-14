@@ -70,6 +70,10 @@ R = np.diag([0.05])
 Px = Qx.copy()
 Py = Qy.copy()
 
+# input bounds
+u_min = np.array([[-2.0]])
+u_max = np.array([[2.0]])
+
 # reference
 reference = np.array([[0.0]])
 reference_trajectory = np.tile(reference, (1, N + 1))
@@ -85,7 +89,9 @@ sqp_cost_matrices = SQP_CostMatrices_NMPC(
     Np=N,
     Qx=Qx,
     Qy=Qy,
-    R=R
+    R=R,
+    U_min=u_min,
+    U_max=u_max,
 )
 
 
@@ -93,20 +99,13 @@ sqp_cost_matrices = SQP_CostMatrices_NMPC(
 sqp_cost_matrices.state_space_parameters = state_space_parameters
 sqp_cost_matrices.reference_trajectory = reference_trajectory
 
-# input bounds
-u_min = np.array([[-2.0]])
-u_max = np.array([[2.0]])
 
 # initial state
 X_initial = np.array([[np.pi / 4.0], [0.0]])
-
-
 U_initial = np.zeros((nu, N))
-u_min_mat = np.tile(u_min, (1, N))
-u_max_mat = np.tile(u_max, (1, N))
 
 solver = SQP_ActiveSet_PCG_PLS(
-    U_size=(U_initial.shape[0], U_initial.shape[1])
+    U_size=(nu, N)
 )
 solver.set_solver_max_iteration(30)
 
@@ -115,8 +114,8 @@ U_opt, J_opt = solver.solve(
     cost_and_gradient_function=sqp_cost_matrices.compute_cost_and_gradient,
     hvp_function=sqp_cost_matrices.hvp_analytic,
     X_initial=X_initial,
-    u_min=u_min_mat,
-    u_max=u_max_mat,
+    U_min_matrix=sqp_cost_matrices.U_min_matrix,
+    U_max_matrix=sqp_cost_matrices.U_max_matrix,
 )
 
 print("Optimized cost:", J_opt)

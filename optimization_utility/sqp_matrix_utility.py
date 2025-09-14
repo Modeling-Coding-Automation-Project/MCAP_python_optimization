@@ -126,6 +126,10 @@ class SQP_CostMatrices_NMPC:
             R: np.ndarray,
             Px: np.ndarray = None,
             Py: np.ndarray = None,
+            U_min: np.ndarray = None,
+            U_max: np.ndarray = None,
+            Y_min: np.ndarray = None,
+            Y_max: np.ndarray = None,
             caller_file_name: str = None
     ):
         if caller_file_name is None:
@@ -176,6 +180,22 @@ class SQP_CostMatrices_NMPC:
             self.Py = Qy.copy()
         else:
             self.Py = Py
+
+        self.U_min_matrix = np.ones((self.nu, self.Np)) * -np.inf
+        if U_min is not None:
+            self.U_min_matrix = np.tile(U_min, (1, self.Np))
+
+        self.U_max_matrix = np.ones((self.nu, self.Np)) * np.inf
+        if U_max is not None:
+            self.U_max_matrix = np.tile(U_max, (1, self.Np))
+
+        self.Y_min_matrix = np.ones((self.ny, self.Np)) * -np.inf
+        if Y_min is not None:
+            self.Y_min_matrix = np.tile(Y_min, (1, self.Np))
+
+        self.Y_max_matrix = np.ones((self.ny, self.Np)) * np.inf
+        if Y_max is not None:
+            self.Y_max_matrix = np.tile(Y_max, (1, self.Np))
 
         # Precompute Jacobians
         self.A_matrix = self.f.jacobian(self.x_syms)  # df/dx

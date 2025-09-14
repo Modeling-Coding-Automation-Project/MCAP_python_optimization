@@ -194,8 +194,8 @@ class SQP_ActiveSet_PCG_PLS:
     def free_mask(self,
                   U: np.ndarray,
                   gradient: np.ndarray,
-                  umin: np.ndarray,
-                  umax: np.ndarray,
+                  U_min_matrix: np.ndarray,
+                  U_max_matrix: np.ndarray,
                   atol: float = U_NEAR_LIMIT_DEFAULT,
                   gtol: float = GRADIENT_ZERO_LIMIT_DEFAULT):
         """
@@ -212,12 +212,12 @@ class SQP_ActiveSet_PCG_PLS:
         for i in range(U.shape[0]):
             for j in range(U.shape[1]):
 
-                if (U[i, j] >= (umin[i, j] - atol)) and \
-                        (U[i, j] <= (umin[i, j] + atol)):
+                if (U[i, j] >= (U_min_matrix[i, j] - atol)) and \
+                        (U[i, j] <= (U_min_matrix[i, j] + atol)):
                     at_lower[i, j] = True
 
-                if (U[i, j] >= (umax[i, j] - atol)) and \
-                        (U[i, j] <= (umax[i, j] + atol)):
+                if (U[i, j] >= (U_max_matrix[i, j] - atol)) and \
+                        (U[i, j] <= (U_max_matrix[i, j] + atol)):
                     at_upper[i, j] = True
 
         for i in range(U.shape[0]):
@@ -236,16 +236,16 @@ class SQP_ActiveSet_PCG_PLS:
         cost_and_gradient_function: callable,
         hvp_function: callable,
         X_initial: np.ndarray,
-        u_min: np.ndarray,
-        u_max: np.ndarray,
+        U_min_matrix: np.ndarray,
+        U_max_matrix: np.ndarray,
     ):
         """
         General SQP solver
         (Active Set + Preconditioned Conjugate Gradient + Projected Line Search).
-        - U_initial: Initial input sequence (N, nu)
+        - U_initial: Initial input sequence (nu, N)
         - cost_and_gradient_function(X_initial, U): Function that returns (J, gradient)
         - hvp_function(X_initial, U, V): Function that returns HVP (H*V)
-        - u_min, u_max: Input lower and upper bounds (N, nu)
+        - U_min_matrix, U_max_matrix: Input lower and upper bounds (nu, N)
         """
         self.X_initial = X_initial
         U = U_initial.copy()
@@ -258,7 +258,8 @@ class SQP_ActiveSet_PCG_PLS:
                 self._solver_step_iterated_number = solver_iteration + 1
                 break
 
-            self._mask = self.free_mask(U, gradient, u_min, u_max)
+            self._mask = self.free_mask(
+                U, gradient, U_min_matrix, U_max_matrix)
 
             rhs = -gradient
             M_inv = 1.0 / (self._diag_R_full + self._lambda_factor)
@@ -281,10 +282,10 @@ class SQP_ActiveSet_PCG_PLS:
 
                 for i in range(U_candidate.shape[0]):
                     for j in range(U_candidate.shape[1]):
-                        if U_candidate[i, j] < u_min[i, j]:
-                            U_candidate[i, j] = u_min[i, j]
-                        elif U_candidate[i, j] > u_max[i, j]:
-                            U_candidate[i, j] = u_max[i, j]
+                        if U_candidate[i, j] < U_min_matrix[i, j]:
+                            U_candidate[i, j] = U_min_matrix[i, j]
+                        elif U_candidate[i, j] > U_max_matrix[i, j]:
+                            U_candidate[i, j] = U_max_matrix[i, j]
 
                 J_candidate, _ = cost_and_gradient_function(
                     X_initial, U_candidate)
