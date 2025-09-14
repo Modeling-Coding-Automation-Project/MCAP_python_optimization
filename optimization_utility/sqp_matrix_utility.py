@@ -984,6 +984,68 @@ class SQP_CostMatrices_NMPC:
 
         return X
 
+    def calculate_Y_limit_penalty(self, Y: np.ndarray):
+        """
+        Calculates the penalty matrix Y_limit_penalty for the given output matrix
+          Y based on minimum and maximum constraints.
+        For each element in Y, the penalty is computed as follows:
+            - If Y[i, j] is less than the corresponding minimum constraint
+              (self.Y_min_matrix[i, j]),
+              the penalty is Y[i, j] - self.Y_min_matrix[i, j].
+            - If Y[i, j] is greater than the corresponding maximum constraint
+              (self.Y_max_matrix[i, j]),
+              the penalty is Y[i, j] - self.Y_max_matrix[i, j].
+            - Otherwise, the penalty is 0.
+        Args:
+            Y (np.ndarray): Output matrix of shape (self.ny, self.Np + 1)
+              to be checked against constraints.
+        Returns:
+            np.ndarray: Penalty matrix of the same shape as Y,
+              containing the calculated penalties.
+        """
+        Y_limit_penalty = np.zeros((self.ny, self.Np + 1))
+        for i in range(self.ny):
+            for j in range(self.Np + 1):
+                if Y[i, j] < self.Y_min_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_min_matrix[i, j]
+                elif Y[i, j] > self.Y_max_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_max_matrix[i, j]
+
+        return Y_limit_penalty
+
+    def calculate_Y_limit_penalty_and_active(self, Y: np.ndarray):
+        """
+        Calculates the penalty and activation matrices for output variable limits.
+        For each output variable and prediction step,
+          this method checks if the value in `Y` violates
+        the corresponding minimum (`Y_min_matrix`) or
+          maximum (`Y_max_matrix`) limits. If a violation occurs,
+        a penalty is computed as the difference between `Y` and
+          the violated limit, and the corresponding
+        entry in the activation matrix is set to 1.0.
+        Args:
+            Y (np.ndarray): Array of output variable values with shape (ny, Np + 1).
+        Returns:
+            Tuple[np.ndarray, np.ndarray]:
+                - Y_limit_penalty (np.ndarray): Matrix of penalties for limit violations,
+                  shape (ny, Np + 1).
+                - Y_limit_active (np.ndarray): Matrix indicating active limit violations
+                  (1.0 if violated, 0.0 otherwise), shape (ny, Np + 1).
+        """
+        Y_limit_penalty = np.zeros((self.ny, self.Np + 1))
+        Y_limit_active = np.zeros((self.ny, self.Np + 1))
+
+        for i in range(self.ny):
+            for j in range(self.Np + 1):
+                if Y[i, j] < self.Y_min_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_min_matrix[i, j]
+                    Y_limit_active[i, j] = 1.0
+                elif Y[i, j] > self.Y_max_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_max_matrix[i, j]
+                    Y_limit_active[i, j] = 1.0
+
+        return Y_limit_penalty, Y_limit_active
+
     def compute_cost_and_gradient(
             self,
             X_initial: np.ndarray,
@@ -1020,36 +1082,28 @@ class SQP_CostMatrices_NMPC:
             Y[:, k] = self.calculate_measurement_function(
                 X[:, k], self.state_space_parameters).flatten()
 
-        # Y penalty
-        R_penalty = np.zeros((self.ny, self.Np + 1))
-        for i in range(self.ny):
-            for j in range(self.Np + 1):
-                if Y[i, j] < self.Y_min_matrix[i, j]:
-                    R_penalty[i, j] = Y[i, j] - self.Y_min_matrix[i, j]
-                elif Y[i, j] > self.Y_max_matrix[i, j]:
-                    R_penalty[i, j] = Y[i, j] - self.Y_max_matrix[i, j]
-                else:
-                    R_penalty[i, j] = 0.0
+        Y_limit_penalty = self.calculate_Y_limit_penalty(Y)
 
         J = 0.0
         for k in range(self.Np):
             e_y_r = Y[:, k] - self.reference_trajectory[:, k]
             J += X[:, k].T @ self.Qx @ X[:, k] + \
                 e_y_r.T @ self.Qy @ e_y_r + U[:, k].T @ self.R @ U[:, k] + \
-                self.Y_min_max_rho * (R_penalty[:, k].T @ R_penalty[:, k])
+                self.Y_min_max_rho * \
+                (Y_limit_penalty[:, k].T @ Y_limit_penalty[:, k])
 
         eN_y_r = Y[:, self.Np] - self.reference_trajectory[:, self.Np]
         J += X[:, self.Np].T @ self.Px @ X[:, self.Np] + \
             eN_y_r.T @ self.Py @ eN_y_r + \
             self.Y_min_max_rho * \
-            (R_penalty[:, self.Np].T @ R_penalty[:, self.Np])
+            (Y_limit_penalty[:, self.Np].T @ Y_limit_penalty[:, self.Np])
 
         # terminal adjoint
         C_N = self.calculate_measurement_jacobian_x(
             X[:, self.Np], self.state_space_parameters)
         lam_next = (2.0 * self.Px) @ X[:, self.Np] + \
             C_N.T @ (2.0 * self.Py @ eN_y_r +
-                     2.0 * self.Y_min_max_rho * R_penalty[:, self.Np])
+                     2.0 * self.Y_min_max_rho * Y_limit_penalty[:, self.Np])
 
         gradient = np.zeros_like(U)
         for k in reversed(range(self.Np)):
@@ -1066,7 +1120,7 @@ class SQP_CostMatrices_NMPC:
 
             lam_next = 2.0 * self.Qx @ X[:, k] + 2.0 * \
                 Cx_k.T @ (self.Qy @ ek_y +
-                          2.0 * self.Y_min_max_rho * R_penalty[:, self.Np]) + \
+                          2.0 * self.Y_min_max_rho * Y_limit_penalty[:, self.Np]) + \
                 A_k.T @ lam_next
 
         return J, gradient
@@ -1109,6 +1163,9 @@ class SQP_CostMatrices_NMPC:
             X[:, self.Np], self.state_space_parameters)
 
         eN_y = yN - self.reference_trajectory[:, self.Np]
+
+        Y_limit_penalty, Y_limit_active = \
+            self.calculate_Y_limit_penalty_and_active(Y)
 
         # --- 2) first-order adjoint (costate lambda) with output terms
         lam = np.zeros((self.nx, self.Np + 1))
