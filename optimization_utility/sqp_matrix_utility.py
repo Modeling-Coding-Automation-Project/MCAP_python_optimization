@@ -1171,7 +1171,11 @@ class SQP_CostMatrices_NMPC:
         lam = np.zeros((self.nx, self.Np + 1))
         Cx_N = self.calculate_measurement_jacobian_x(
             X[:, self.Np], self.state_space_parameters)
-        lam[:, self.Np] = 2.0 * self.Px @ X[:, self.Np]
+
+        lam[:, self.Np] = 2.0 * self.Px @ X[:, self.Np] + \
+            (Cx_N.T @ ((2.0 * self.Py @ eN_y).flatten() + 2.0 *
+                       self.Y_min_max_rho * Y_limit_penalty[:, self.Np])
+             ).flatten()
 
         for k in range(self.Np - 1, -1, -1):
             A_k = self.calculate_state_jacobian_x(
@@ -1179,7 +1183,10 @@ class SQP_CostMatrices_NMPC:
             Cx_k = self.calculate_measurement_jacobian_x(
                 X[:, k], self.state_space_parameters)
             ek_y = Y[:, k] - self.reference_trajectory[:, k]
-            lam[:, k] = 2.0 * self.Qx @ X[:, k] + Cx_k.T @ (2.0 * self.Qy @ ek_y) + \
+
+            lam[:, k] = 2.0 * self.Qx @ X[:, k] + \
+                Cx_k.T @ (2.0 * self.Qy @ ek_y +
+                          2.0 * self.Y_min_max_rho * Y_limit_penalty[:, k]) + \
                 A_k.T @ lam[:, k + 1]
 
         # --- 3) forward directional state: delta_x ---
@@ -1197,14 +1204,24 @@ class SQP_CostMatrices_NMPC:
         # Match the treatment of the terminal term phi_xx = l_xx(X_N,·) (currently 2P)
         # Additionally, contributions from pure second-order output and second derivatives of output
         l_xx_dx = self.l_xx(X[:, self.Np], None) @ dx[:, self.Np]
-        CX_N_T_Py_Cx_N_dx = Cx_N.T @ (2.0 * self.Py @ (Cx_N @ dx[:, self.Np]))
+        CX_N_dx = Cx_N @ dx[:, self.Np]
+
+        CX_N_T_Py_Cx_N_dx = Cx_N.T @ (2.0 * self.Py @ CX_N_dx)
+        CX_N_T_penalty_CX_N_dx = Cx_N.T @ ((2.0 * self.Y_min_max_rho)
+                                           * (Y_limit_active[:, self.Np] * CX_N_dx))
+
+        Hxx_penalty_term_N = self.hxx_lambda_contract(
+            X[:, self.Np], self.state_space_parameters,
+            2.0 * self.Y_min_max_rho *
+            Y_limit_penalty[:, self.Np], dx[:, self.Np]
+        )
+
         d_lambda[:, self.Np] += \
             l_xx_dx.flatten() + \
             CX_N_T_Py_Cx_N_dx.flatten() + \
-            self.hxx_lambda_contract(
-            X[:, self.Np],
-            self.state_space_parameters, 2.0 * self.Py @ eN_y,
-            dx[:, self.Np]).flatten()
+            Hxx_penalty_term_N.flatten()
+
+        d_lambda[:, self.Np] += CX_N_T_penalty_CX_N_dx.flatten()
 
         Hu = np.zeros_like(U)
         for k in range(self.Np - 1, -1, -1):
@@ -1216,7 +1233,20 @@ class SQP_CostMatrices_NMPC:
                 X[:, k], self.state_space_parameters)
             ek_y = Y[:, k] - self.reference_trajectory[:, k]
 
-            # dlambda_k
+            Cx_dx_k = Cx_k @ dx[:, k]
+            term_Qy_GN = Cx_k.T @ (2.0 * self.Qy @ Cx_dx_k)
+            term_Qy_hxx = self.hxx_lambda_contract(
+                X[:, k], self.state_space_parameters,
+                2.0 * self.Qy @ ek_y, dx[:, k]
+            )
+
+            term_penalty_GN = Cx_k.T @ ((2.0 * self.Y_min_max_rho)
+                                        * (Y_limit_active[:, k] * Cx_dx_k))
+            term_penalty_hxx = self.hxx_lambda_contract(
+                X[:, k], self.state_space_parameters,
+                2.0 * self.Y_min_max_rho * Y_limit_penalty[:, k], dx[:, k]
+            )
+
             term_xx = self.fx_xx_lambda_contract(
                 X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
             term_xu = self.fx_xu_lambda_contract(
@@ -1226,12 +1256,12 @@ class SQP_CostMatrices_NMPC:
                 (self.l_xx(X[:, k], U[:, k]) @ dx[:, k]).flatten() + \
                 (self.l_xu(X[:, k], U[:, k]) @ V[:, k]).flatten() + \
                 (A_k.T @ d_lambda[:, k + 1]).flatten() + \
-                (Cx_k.T @ (2 * self.Qy @ (Cx_k @ dx[:, k]))).flatten() + \
-                self.hxx_lambda_contract(
-                    X[:, k],
-                    self.state_space_parameters,
-                    2 * self.Qy @ ek_y, dx[:, k]).flatten() + \
-                term_xx.flatten() + term_xu.flatten()
+                term_Qy_GN.flatten() + \
+                term_Qy_hxx.flatten() + \
+                term_penalty_GN.flatten() + \
+                term_penalty_hxx.flatten() + \
+                term_xx.flatten() + \
+                term_xu.flatten()
 
             # (HV)_k:
             #   2R V + B^T dlambda_{k+1} + second-order terms from dynamics
