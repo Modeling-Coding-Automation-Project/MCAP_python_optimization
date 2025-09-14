@@ -1,9 +1,17 @@
+"""
+File: sqp_matrix_utility.py
+
+A utility module for constructing and handling matrices and functions
+used in Sequential Quadratic Programming (SQP) for Nonlinear Model Predictive Control (NMPC).
+It includes functionality to extract parameters from state-space equations,
+generate code for state and measurement functions,
+compute Jacobians and Hessians, and evaluate cost functions and their gradients.
+"""
 import os
 import inspect
 import numpy as np
 import sympy as sp
 import importlib
-from dataclasses import dataclass
 
 from external_libraries.MCAP_python_control.python_control.control_deploy import ExpressionDeploy
 
@@ -27,6 +35,13 @@ def extract_parameters_from_state_space_equations(
         x_syms: sp.Matrix,
         u_syms: sp.Matrix
 ):
+    """
+    Extracts parameters from the state-space equations f and h,
+    given the state symbols x_syms and input symbols u_syms.
+    Parameters are defined as free symbols in f or h that are not
+    part of x_syms or u_syms.
+    Returns a sorted list of parameter symbols.
+    """
     # Helper to collect free symbols from a sympy Matrix/Array
     def _collect_free_symbols(expr_matrix):
         syms = set()
@@ -71,6 +86,34 @@ def extract_parameters_from_state_space_equations(
 
 
 class SQP_CostMatrices_NMPC:
+    """
+    A class to handle state-space equations, cost matrices,
+    and related computations for SQP-based NMPC.
+
+    Attributes:
+        x_syms (sp.Matrix): State variable symbols.
+        u_syms (sp.Matrix): Input variable symbols.
+        f (sp.Matrix): State equation vector.
+        h (sp.Matrix): Measurement equation vector.
+        Parameters (list): List of parameter symbols extracted from f and h.
+        nx (int): Number of states.
+        nu (int): Number of inputs.
+        ny (int): Number of outputs.
+        Np (int): Prediction horizon length.
+        Qx (np.ndarray): State cost weight matrix.
+        Qy (np.ndarray): Output cost weight matrix.
+        R (np.ndarray): Input cost weight matrix.
+        Px (np.ndarray): Terminal state cost weight matrix.
+        Py (np.ndarray): Terminal output cost weight matrix.
+        A_matrix (sp.Matrix): Jacobian of f w.r.t. x (df/dx).
+        B_matrix (sp.Matrix): Jacobian of f w.r.t. u (df/du).
+        C_matrix (sp.Matrix): Jacobian of h w.r.t. x (dh/dx).
+        Hf_xx_matrix, Hf_xu_matrix, Hf_ux_matrix, Hf_uu_matrix: Stacked Hessians of f.
+        Hh_xx_matrix: Stacked Hessians of h.
+        Various code file names and function handles for state, measurement,
+            Jacobians, and Hessians.
+    """
+
     def __init__(
             self,
             x_syms: sp.Matrix,
@@ -204,6 +247,14 @@ class SQP_CostMatrices_NMPC:
             self,
             file_name_without_ext: str = None
     ):
+        """
+        Create numpy code files for state and measurement equations.
+        Args:
+            file_name_without_ext (str): The file name without extension to use for generated code files.
+        Returns:
+            state_function_code_file_name (str): The generated state function code file name.
+            measurement_function_code_file_name (str): The generated measurement function code file name.
+        """
         state_function_code_file_name = STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
         measurement_function_code_file_name = MEASUREMENT_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
 
@@ -234,6 +285,15 @@ class SQP_CostMatrices_NMPC:
         self,
         file_name_without_ext: str = None
     ):
+        """
+        Create numpy code files for Jacobians of state and measurement equations.
+        Args:
+            file_name_without_ext (str): The file name without extension to use for generated code files.
+        Returns:
+            state_jacobian_x_code_file_name (str): The generated state Jacobian w.r.t. x code file name.
+            state_jacobian_u_code_file_name (str): The generated state Jacobian w.r.t. u code file name.
+            measurement_jacobian_x_code_file_name (str): The generated measurement Jacobian w.r.t. x code file name.
+        """
         state_jacobian_x_code_file_name = STATE_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX
         state_jacobian_u_code_file_name = STATE_JACOBIAN_U_NUMPY_CODE_FILE_NAME_SUFFIX
         measurement_jacobian_x_code_file_name = MEASUREMENT_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX
@@ -390,21 +450,91 @@ class SQP_CostMatrices_NMPC:
             self,
             file_name: str
     ):
+        """
+        Dynamically imports a Python file and retrieves the 'function' callable.
+        Args:
+            file_name (str): The Python file name to import.
+        Returns:
+            function (callable): The 'function' callable defined in the imported file.
+        """
+
         module_name = os.path.splitext(os.path.basename(file_name))[0]
         module = importlib.import_module(module_name)
 
         return getattr(module, 'function', None)
 
     def l_xx(self, x, u):
+        """
+        Computes the second derivative (Hessian)
+        of the objective function with respect to x.
+
+        Args:
+            x: The current value of the variable x.
+            u: The current value of the variable u.
+
+        Returns:
+            The Hessian matrix of the objective function
+            with respect to x, calculated as 2 * self.Qx.
+        """
         return 2 * self.Qx
 
     def l_uu(self, x, u):
+        """
+        Computes the second derivative (Hessian)
+          of the cost function with respect to the control variable `u`.
+        Parameters
+        ----------
+        x : array-like
+            The state variable(s).
+        u : array-like
+            The control variable(s).
+        Returns
+        -------
+        ndarray or scalar
+            The Hessian of the cost function with respect to `u`,
+              which is 2 times the control weighting matrix `R`.
+        """
+
         return 2 * self.R
 
     def l_xu(self, x, u):
+        """
+        Computes the cross partial derivatives
+        of the Lagrangian with respect to state variables
+          `x` and control variables `u`.
+        Parameters
+        ----------
+        x : np.ndarray
+            State variables array.
+        u : np.ndarray
+            Control variables array.
+        Returns
+        -------
+        np.ndarray
+            A zero matrix of shape (self.nx, self.nu)
+              representing the cross partial derivatives.
+        """
+
         return np.zeros((self.nx, self.nu))
 
     def l_ux(self, x, u):
+        """
+        Computes the cross partial derivatives
+          of the Lagrangian with respect to control variables (u)
+          and state variables (x).
+        Parameters
+        ----------
+        x : array-like
+            State variables.
+        u : array-like
+            Control variables.
+        Returns
+        -------
+        numpy.ndarray
+            A zero matrix of shape (self.nu, self.nx),
+              representing the cross partial derivatives.
+        """
+
         return np.zeros((self.nu, self.nx))
 
     def calculate_state_function(
@@ -413,7 +543,17 @@ class SQP_CostMatrices_NMPC:
             U: np.ndarray,
             Parameters
     ) -> np.ndarray:
+        """
+        Calculates the next state vector using the provided state function.
 
+        Args:
+            X (np.ndarray): Current state vector of shape (nx,) or (nx, 1).
+            U (np.ndarray): Control input vector of shape (nu,) or (nu, 1).
+            Parameters: Additional parameters required by the state function.
+
+        Returns:
+            np.ndarray: Next state vector reshaped to (nx, 1).
+        """
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
 
@@ -426,7 +566,16 @@ class SQP_CostMatrices_NMPC:
             X: np.ndarray,
             Parameters
     ) -> np.ndarray:
+        """
+        Calculates the measurement function output for given state and parameters.
 
+        Args:
+            X (np.ndarray): State vector of shape (nx,) or (nx, 1).
+            Parameters: Additional parameters required by the measurement function.
+
+        Returns:
+            np.ndarray: Measurement output vector of shape (ny, 1).
+        """
         X = X.reshape((self.nx, 1))
         U = np.zeros((self.nu, 1))
 
@@ -440,7 +589,18 @@ class SQP_CostMatrices_NMPC:
             U: np.ndarray,
             Parameters
     ) -> np.ndarray:
+        """
+        Calculates the Jacobian matrix of the state with respect to the state variables.
 
+        Args:
+            X (np.ndarray): State vector of shape (nx,) or (nx, 1).
+            U (np.ndarray): Control input vector of shape (nu,) or (nu, 1).
+            Parameters: Additional parameters required by the Jacobian calculation function.
+
+        Returns:
+            np.ndarray: The state Jacobian matrix with respect to the state variables,
+                        reshaped to (nx, nx).
+        """
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
 
@@ -454,7 +614,19 @@ class SQP_CostMatrices_NMPC:
             U: np.ndarray,
             Parameters
     ) -> np.ndarray:
+        """
+        Calculates the Jacobian matrix of the system states with respect to the control inputs.
 
+        Args:
+            X (np.ndarray): State vector of shape (nx,) or (nx, 1).
+            U (np.ndarray): Control input vector of shape (nu,) or (nu, 1).
+            Parameters: Additional parameters required by the Jacobian computation.
+
+        Returns:
+            np.ndarray: The Jacobian matrix of shape (nx, nu),
+              representing the partial derivatives of the states
+              with respect to the control inputs.
+        """
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
 
@@ -467,7 +639,16 @@ class SQP_CostMatrices_NMPC:
             X: np.ndarray,
             Parameters
     ) -> np.ndarray:
+        """
+        Calculates the measurement Jacobian matrix with respect to the state vector X.
 
+        Args:
+            X (np.ndarray): State vector of shape (nx,) or (nx, 1).
+            Parameters: Additional parameters required by the measurement Jacobian function.
+
+        Returns:
+            np.ndarray: Measurement Jacobian matrix of shape (ny, nx).
+        """
         X = X.reshape((self.nx, 1))
         U = np.zeros((self.nu, 1))
 
@@ -485,8 +666,23 @@ class SQP_CostMatrices_NMPC:
             lam_next: np.ndarray,
             dX: np.ndarray
     ) -> np.ndarray:
-        # sum_i lam_i * ( d^2 f_i / dx^2 @ dx )
-
+        """
+        Computes the contraction of the second derivative
+          of the function f with respect to x (Hessian),
+        weighted by the lambda vector and contracted with the direction vector dX.
+        Specifically, for each i in range(nx), it calculates:
+            sum_i lam_next[i] * (Hf_xx[i * nx + j, k] * dX[k])
+        where Hf_xx is the Hessian matrix of f with respect to x,
+          evaluated at (X, U, Parameters).
+        Args:
+            X (np.ndarray): State vector of shape (nx,) or (nx, 1).
+            U (np.ndarray): Control vector of shape (nu,) or (nu, 1).
+            Parameters: Additional parameters required by the Hessian function.
+            lam_next (np.ndarray): Lambda vector of shape (nx,) or (nx, 1) used for weighting.
+            dX (np.ndarray): Direction vector of shape (nx,) or (nx, 1) for contraction.
+        Returns:
+            np.ndarray: Resulting contracted vector of shape (nx, 1).
+        """
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
         lam_next = lam_next.reshape((self.nx, 1))
@@ -514,8 +710,23 @@ class SQP_CostMatrices_NMPC:
             lam_next: np.ndarray,
             dU: np.ndarray
     ) -> np.ndarray:
-        # sum_i lam_i * ( d^2 f_i / (dx du) @ du )
-
+        """
+        Computes the contraction of the Lagrange multipliers
+          with the mixed second derivatives of the objective function
+        with respect to state and control variables, and the control increment vector.
+        Specifically, calculates:
+            sum_i lam_next[i] * (sum_j sum_k Hf_xu[i * nx + j, k] * dU[k])
+              for each state variable j,
+        where Hf_xu is the mixed second derivative matrix (d^2 f / dx du).
+        Args:
+            X (np.ndarray): State vector of shape (nx,) or (nx, 1).
+            U (np.ndarray): Control vector of shape (nu,) or (nu, 1).
+            Parameters: Additional parameters required by the objective function.
+            lam_next (np.ndarray): Lagrange multipliers vector of shape (nx,) or (nx, 1).
+            dU (np.ndarray): Control increment vector of shape (nu,) or (nu, 1).
+        Returns:
+            np.ndarray: Resulting contracted vector of shape (nx, 1).
+        """
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
         lam_next = lam_next.reshape((self.nx, 1))
@@ -546,8 +757,27 @@ class SQP_CostMatrices_NMPC:
             lam_next: np.ndarray,
             dX: np.ndarray
     ) -> np.ndarray:
-        # sum_i lam_i * ( d^2 f_i / (du dx) @ dx )
+        """
+        Computes the contraction of the second mixed partial derivatives
+          of a function with respect to control and state variables,
+        weighted by the Lagrange multipliers and a direction vector.
 
+        Specifically, calculates the sum over i of lam_next[i] * (d^2 f_i / (du dx) @ dX), where:
+            - d^2 f_i / (du dx) is the mixed Hessian of
+              f_i with respect to control (u) and state (x),
+            - lam_next is the vector of Lagrange multipliers,
+            - dX is the direction vector for state variables.
+
+        Args:
+            X (np.ndarray): State vector of shape (nx,) or (nx, 1).
+            U (np.ndarray): Control vector of shape (nu,) or (nu, 1).
+            Parameters: Additional parameters required by the Hessian function.
+            lam_next (np.ndarray): Lagrange multipliers vector of shape (nx,) or (nx, 1).
+            dX (np.ndarray): Direction vector for state variables of shape (nx,) or (nx, 1).
+
+        Returns:
+            np.ndarray: Resulting contracted vector of shape (nu, 1).
+        """
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
         lam_next = lam_next.reshape((self.nx, 1))
@@ -578,8 +808,26 @@ class SQP_CostMatrices_NMPC:
             lam_next: np.ndarray,
             dU: np.ndarray
     ) -> np.ndarray:
-        # sum_i lam_i * ( d^2 f_i / du^2 @ du )
+        """
+        Computes the contraction of the second derivative of
+          the function f with respect to U (control variables),
+        weighted by the lambda multipliers and the direction dU.
 
+        Specifically, calculates the sum over i of lam_next[i] * (d^2 f_i / du^2 @ dU), where:
+            - Hf_uu is the Hessian of f with respect to U, for each state variable i.
+            - lam_next is the vector of multipliers for each state variable.
+            - dU is the direction vector for control variables.
+
+        Args:
+            X (np.ndarray): State vector, shape (nx, 1) or (nx,).
+            U (np.ndarray): Control vector, shape (nu, 1) or (nu,).
+            Parameters: Additional parameters required by hf_uu_code_file_function.
+            lam_next (np.ndarray): Multipliers for each state variable, shape (nx, 1) or (nx,).
+            dU (np.ndarray): Direction vector for control variables, shape (nu, 1) or (nu,).
+
+        Returns:
+            np.ndarray: Resulting contracted vector, shape (nu, 1).
+        """
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
         lam_next = lam_next.reshape((self.nx, 1))
@@ -609,8 +857,20 @@ class SQP_CostMatrices_NMPC:
             w: np.ndarray,
             dX: np.ndarray
     ) -> np.ndarray:
-        # sum_i w_i * ( d^2 h_i / dx^2 @ dx )
-
+        """
+        Computes the weighted contraction of the second derivative
+          (Hessian) of the function h with respect to x,
+        contracted along the direction dX, and summed over all outputs with weights w.
+        Specifically, for each output dimension i, it calculates:
+            sum_i w_i * (d^2 h_i / dx^2 @ dX)
+        where:
+            - X: State vector of shape (nx,)
+            - Parameters: Additional parameters required by the Hessian function
+            - w: Weight vector of shape (ny,)
+            - dX: Direction vector for contraction of shape (nx,)
+        Returns:
+            np.ndarray: Resulting contracted vector of shape (nx, 1)
+        """
         X = X.reshape((self.nx, 1))
         U = np.zeros((self.nu, 1))
         w = w.reshape((self.ny, 1))
@@ -636,6 +896,17 @@ class SQP_CostMatrices_NMPC:
         U: np.ndarray,
         Parameters
     ):
+        """
+        Simulates the trajectory of the system over a prediction horizon.
+        Args:
+            X_initial (np.ndarray): Initial state vector of the system (shape: [nx,]).
+            U (np.ndarray): Control input sequence over the prediction horizon
+              (shape: [nu, Np]).
+            Parameters: Additional parameters required by the state function.
+        Returns:
+            np.ndarray: Simulated state trajectory over the prediction horizon
+              (shape: [nx, Np + 1]).
+        """
         X = np.zeros((self.nx, self.Np + 1))
         X[:, 0] = X_initial.flatten()
         for k in range(self.Np):
@@ -649,9 +920,27 @@ class SQP_CostMatrices_NMPC:
             X_initial: np.ndarray,
             U: np.ndarray
     ):
-        # This function will be called from SQP solver,
-        # thus Parameters and Reference trajectory must be changed beforehand.
-
+        """
+        Computes the cost function value and its gradient with respect to the control input sequence for a given initial state and control trajectory.
+        This function simulates the system trajectory using the provided initial state and control inputs, evaluates the cost function over the prediction horizon, and calculates the gradient of the cost with respect to the control inputs using adjoint (backpropagation) methods.
+        Parameters
+        ----------
+        X_initial : np.ndarray
+            The initial state vector of the system.
+        U : np.ndarray
+            The control input sequence over the prediction horizon, with shape (nu, Np).
+        Returns
+        -------
+        J : float
+            The computed cost function value for the given trajectory and control inputs.
+        grad : np.ndarray
+            The gradient of the cost function with respect to the control inputs, with shape matching U.
+        Notes
+        -----
+        - The function assumes that system parameters and reference trajectory are set prior to invocation.
+        - The cost function includes state, output, and control penalties over the horizon, as well as terminal penalties.
+        - The gradient is computed using backward recursion with adjoint variables.
+        """
         X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
         Y = np.zeros((self.ny, self.Np + 1))
         for k in range(X.shape[0]):
@@ -698,6 +987,28 @@ class SQP_CostMatrices_NMPC:
             U: np.ndarray,
             V: np.ndarray
     ):
+        """
+        Computes the Hessian-vector product (HVP) analytically
+          for a trajectory optimization problem.
+        This method performs a forward simulation of the system dynamics,
+          computes first-order adjoint variables,
+        propagates directional derivatives, and then calculates
+          the backward second-order adjoint variables to
+        obtain the HVP with respect to the control input direction V.
+        Args:
+            X_initial (np.ndarray): Initial state vector of shape (nx,).
+            U (np.ndarray): Control input trajectory of shape (nu, Np).
+            V (np.ndarray): Directional vector for control inputs of shape (nu, Np).
+        Returns:
+            np.ndarray: Hessian-vector product with respect to control inputs, shape (nu, Np).
+        Notes:
+            - The method assumes the existence of system dynamics,
+              measurement functions, and their derivatives.
+            - The computation involves both first- and second-order derivatives
+              of the cost and system dynamics.
+            - The returned value can be used for second-order optimization algorithms
+              such as SQP or Newton-type methods.
+        """
         # --- 1) forward states
         X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
         Y = np.zeros((self.ny, self.Np + 1))

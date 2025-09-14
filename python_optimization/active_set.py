@@ -1,3 +1,10 @@
+"""
+File: active_set.py
+
+Description: This module defines classes for managing active sets of constraints
+in optimization problems. It includes a 1D active set manager and a 2D active set manager,
+as well as a utility class for performing matrix operations on active elements.
+"""
 import numpy as np
 
 
@@ -225,6 +232,11 @@ class ActiveSet2D:
 
 
 class ActiveSet2D_MatrixOperator:
+    """
+    A utility class for performing matrix operations on elements
+    specified by an ActiveSet2D instance.
+    """
+
     @staticmethod
     def element_wise_product(
         A: np.ndarray,
