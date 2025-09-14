@@ -15,6 +15,8 @@ import importlib
 
 from external_libraries.MCAP_python_control.python_control.control_deploy import ExpressionDeploy
 
+Y_MIN_MAX_RHO_FACTOR_DEFAULT = 1.0e2
+
 STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_state_function.py"
 MEASUREMENT_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_measurement_function.py"
 
@@ -130,6 +132,7 @@ class SQP_CostMatrices_NMPC:
             U_max: np.ndarray = None,
             Y_min: np.ndarray = None,
             Y_max: np.ndarray = None,
+            Y_min_max_rho: float = Y_MIN_MAX_RHO_FACTOR_DEFAULT,
             caller_file_name: str = None
     ):
         if caller_file_name is None:
@@ -189,13 +192,15 @@ class SQP_CostMatrices_NMPC:
         if U_max is not None:
             self.U_max_matrix = np.tile(U_max, (1, self.Np))
 
-        self.Y_min_matrix = np.ones((self.ny, self.Np)) * -np.inf
+        self.Y_min_matrix = np.ones((self.ny, self.Np + 1)) * -np.inf
         if Y_min is not None:
-            self.Y_min_matrix = np.tile(Y_min, (1, self.Np))
+            self.Y_min_matrix = np.tile(Y_min, (1, self.Np + 1))
 
-        self.Y_max_matrix = np.ones((self.ny, self.Np)) * np.inf
+        self.Y_max_matrix = np.ones((self.ny, self.Np + 1)) * np.inf
         if Y_max is not None:
-            self.Y_max_matrix = np.tile(Y_max, (1, self.Np))
+            self.Y_max_matrix = np.tile(Y_max, (1, self.Np + 1))
+
+        self.Y_min_max_rho = Y_min_max_rho
 
         # Precompute Jacobians
         self.A_matrix = self.f.jacobian(self.x_syms)  # df/dx
@@ -294,7 +299,7 @@ class SQP_CostMatrices_NMPC:
         if Y_min.shape[0] != self.ny or Y_min.shape[1] != 1:
             raise ValueError(
                 f"Y_min must have shape ({self.ny}, 1), got {Y_min.shape}")
-        self.Y_min_matrix = np.tile(Y_min, (1, self.Np))
+        self.Y_min_matrix = np.tile(Y_min, (1, self.Np + 1))
 
     def set_Y_max(self, Y_max: np.ndarray):
         """
@@ -305,7 +310,7 @@ class SQP_CostMatrices_NMPC:
         if Y_max.shape[0] != self.ny or Y_max.shape[1] != 1:
             raise ValueError(
                 f"Y_max must have shape ({self.ny}, 1), got {Y_max.shape}")
-        self.Y_max_matrix = np.tile(Y_max, (1, self.Np))
+        self.Y_max_matrix = np.tile(Y_max, (1, self.Np + 1))
 
     def create_state_measurement_equation_numpy_code(
             self,
@@ -1001,7 +1006,7 @@ class SQP_CostMatrices_NMPC:
         -------
         J : float
             The computed cost function value for the given trajectory and control inputs.
-        grad : np.ndarray
+        gradient : np.ndarray
             The gradient of the cost function with respect to the control inputs, with shape matching U.
         Notes
         -----
@@ -1015,23 +1020,38 @@ class SQP_CostMatrices_NMPC:
             Y[:, k] = self.calculate_measurement_function(
                 X[:, k], self.state_space_parameters).flatten()
 
+        # Y penalty
+        R_penalty = np.zeros((self.ny, self.Np + 1))
+        for i in range(self.ny):
+            for j in range(self.Np + 1):
+                if Y[i, j] < self.Y_min_matrix[i, j]:
+                    R_penalty[i, j] = Y[i, j] - self.Y_min_matrix[i, j]
+                elif Y[i, j] > self.Y_max_matrix[i, j]:
+                    R_penalty[i, j] = Y[i, j] - self.Y_max_matrix[i, j]
+                else:
+                    R_penalty[i, j] = 0.0
+
         J = 0.0
         for k in range(self.Np):
             e_y_r = Y[:, k] - self.reference_trajectory[:, k]
             J += X[:, k].T @ self.Qx @ X[:, k] + \
-                e_y_r.T @ self.Qy @ e_y_r + U[:, k].T @ self.R @ U[:, k]
+                e_y_r.T @ self.Qy @ e_y_r + U[:, k].T @ self.R @ U[:, k] + \
+                self.Y_min_max_rho * (R_penalty[:, k].T @ R_penalty[:, k])
 
         eN_y_r = Y[:, self.Np] - self.reference_trajectory[:, self.Np]
         J += X[:, self.Np].T @ self.Px @ X[:, self.Np] + \
-            eN_y_r.T @ self.Py @ eN_y_r
+            eN_y_r.T @ self.Py @ eN_y_r + \
+            self.Y_min_max_rho * \
+            (R_penalty[:, self.Np].T @ R_penalty[:, self.Np])
 
         # terminal adjoint
         C_N = self.calculate_measurement_jacobian_x(
             X[:, self.Np], self.state_space_parameters)
         lam_next = (2.0 * self.Px) @ X[:, self.Np] + \
-            C_N.T @ (2.0 * self.Py @ eN_y_r)
+            C_N.T @ (2.0 * self.Py @ eN_y_r +
+                     2.0 * self.Y_min_max_rho * R_penalty[:, self.Np])
 
-        grad = np.zeros_like(U)
+        gradient = np.zeros_like(U)
         for k in reversed(range(self.Np)):
             Cx_k = self.calculate_measurement_jacobian_x(
                 X[:, k], self.state_space_parameters)
@@ -1042,12 +1062,14 @@ class SQP_CostMatrices_NMPC:
             B_k = self.calculate_state_jacobian_u(
                 X[:, k], U[:, k], self.state_space_parameters)
 
-            grad[:, k] = 2.0 * self.R @ U[:, k] + B_k.T @ lam_next
+            gradient[:, k] = 2.0 * self.R @ U[:, k] + B_k.T @ lam_next
 
             lam_next = 2.0 * self.Qx @ X[:, k] + 2.0 * \
-                Cx_k.T @ (self.Qy @ ek_y) + A_k.T @ lam_next
+                Cx_k.T @ (self.Qy @ ek_y +
+                          2.0 * self.Y_min_max_rho * R_penalty[:, self.Np]) + \
+                A_k.T @ lam_next
 
-        return J, grad
+        return J, gradient
 
     def hvp_analytic(
             self,
