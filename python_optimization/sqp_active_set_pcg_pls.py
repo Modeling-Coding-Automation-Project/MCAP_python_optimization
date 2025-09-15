@@ -238,6 +238,7 @@ class SQP_ActiveSet_PCG_PLS:
         X_initial: np.ndarray,
         U_min_matrix: np.ndarray,
         U_max_matrix: np.ndarray,
+        Y_offset: np.ndarray = None,
     ):
         """
         General SQP solver
@@ -252,7 +253,7 @@ class SQP_ActiveSet_PCG_PLS:
 
         for solver_iteration in range(self._solver_max_iteration):
             # Calculate cost and gradient
-            J, gradient = cost_and_gradient_function(X_initial, U)
+            J, gradient = cost_and_gradient_function(X_initial, U, Y_offset)
 
             if np.linalg.norm(gradient) < self._gradient_norm_zero_limit:
                 self._solver_step_iterated_number = solver_iteration + 1

@@ -1061,7 +1061,8 @@ class SQP_CostMatrices_NMPC:
     def compute_cost_and_gradient(
             self,
             X_initial: np.ndarray,
-            U: np.ndarray
+            U: np.ndarray,
+            Y_offset: np.ndarray = None
     ):
         """
         Computes the cost function value and its gradient with respect to the control input sequence
@@ -1076,6 +1077,8 @@ class SQP_CostMatrices_NMPC:
             The initial state vector of the system.
         U : np.ndarray
             The control input sequence over the prediction horizon, with shape (nu, Np).
+        Y_offset : np.ndarray, optional
+            An optional offset to be added to the output measurements, with shape (ny, 1).
         Returns
         -------
         J : float
@@ -1089,9 +1092,14 @@ class SQP_CostMatrices_NMPC:
         - The gradient is computed using backward recursion with adjoint variables.
         """
         X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
-        Y = np.zeros((self.ny, self.Np + 1))
+
+        if Y_offset is None:
+            Y = np.zeros((self.ny, self.Np + 1))
+        else:
+            Y = np.tile(Y_offset.reshape((self.ny, 1)), (1, self.Np + 1))
+
         for k in range(X.shape[0]):
-            Y[:, k] = self.calculate_measurement_function(
+            Y[:, k] += self.calculate_measurement_function(
                 X[:, k], self.state_space_parameters).flatten()
 
         Y_limit_penalty = self.calculate_Y_limit_penalty(Y)
