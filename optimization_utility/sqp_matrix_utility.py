@@ -280,6 +280,8 @@ class SQP_CostMatrices_NMPC:
         self.state_space_parameters = None
         self.reference_trajectory = None
 
+        self._Y_offset = None
+
     def set_U_min(self, U_min: np.ndarray):
         """
         Set the minimum input constraint matrix.
@@ -323,6 +325,18 @@ class SQP_CostMatrices_NMPC:
             raise ValueError(
                 f"Y_max must have shape ({self.ny}, 1), got {Y_max.shape}")
         self.Y_max_matrix = np.tile(Y_max, (1, self.Np + 1))
+
+    def set_Y_offset(self, Y_offset: np.ndarray):
+        """
+        Set the output offset matrix.
+        Args:
+            Y_offset (np.ndarray): Output offset values of shape (ny, 1).
+        """
+        if Y_offset.shape[0] != self.ny or Y_offset.shape[1] != 1:
+            raise ValueError(
+                f"Y_offset must have shape ({self.ny}, 1), got {Y_offset.shape}")
+
+        self._Y_offset = Y_offset
 
     def create_state_measurement_equation_numpy_code(
             self,
@@ -1061,8 +1075,7 @@ class SQP_CostMatrices_NMPC:
     def compute_cost_and_gradient(
             self,
             X_initial: np.ndarray,
-            U: np.ndarray,
-            Y_offset: np.ndarray = None
+            U: np.ndarray
     ):
         """
         Computes the cost function value and its gradient with respect to the control input sequence
@@ -1077,8 +1090,6 @@ class SQP_CostMatrices_NMPC:
             The initial state vector of the system.
         U : np.ndarray
             The control input sequence over the prediction horizon, with shape (nu, Np).
-        Y_offset : np.ndarray, optional
-            An optional offset to be added to the output measurements, with shape (ny, 1).
         Returns
         -------
         J : float
@@ -1093,10 +1104,10 @@ class SQP_CostMatrices_NMPC:
         """
         X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
 
-        if Y_offset is None:
+        if self._Y_offset is None:
             Y = np.zeros((self.ny, self.Np + 1))
         else:
-            Y = np.tile(Y_offset.reshape((self.ny, 1)), (1, self.Np + 1))
+            Y = np.tile(self._Y_offset.reshape((self.ny, 1)), (1, self.Np + 1))
 
         for k in range(X.shape[0]):
             Y[:, k] += self.calculate_measurement_function(

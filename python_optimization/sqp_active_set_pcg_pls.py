@@ -83,6 +83,8 @@ class SQP_ActiveSet_PCG_PLS:
         self._pcg_step_iterated_number = 0
         self._line_search_step_iterated_number = 0
 
+        self.J_opt = 0.0
+
     # setter
     def set_gradient_norm_zero_limit(self, limit: float):
         self._gradient_norm_zero_limit = limit
@@ -238,7 +240,6 @@ class SQP_ActiveSet_PCG_PLS:
         X_initial: np.ndarray,
         U_min_matrix: np.ndarray,
         U_max_matrix: np.ndarray,
-        Y_offset: np.ndarray = None,
     ):
         """
         General SQP solver
@@ -253,7 +254,7 @@ class SQP_ActiveSet_PCG_PLS:
 
         for solver_iteration in range(self._solver_max_iteration):
             # Calculate cost and gradient
-            J, gradient = cost_and_gradient_function(X_initial, U, Y_offset)
+            J, gradient = cost_and_gradient_function(X_initial, U)
 
             if np.linalg.norm(gradient) < self._gradient_norm_zero_limit:
                 self._solver_step_iterated_number = solver_iteration + 1
@@ -300,4 +301,6 @@ class SQP_ActiveSet_PCG_PLS:
                 alpha *= self._alpha_decay_rate
             U = U_new
 
-        return U, J
+        self.J_opt = J
+
+        return U
