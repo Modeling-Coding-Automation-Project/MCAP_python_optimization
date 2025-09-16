@@ -109,7 +109,7 @@ solver = SQP_ActiveSet_PCG_PLS(
 )
 solver.set_solver_max_iteration(30)
 
-U_opt, J_opt = solver.solve(
+U_opt = solver.solve(
     U_initial=U_initial,
     cost_and_gradient_function=sqp_cost_matrices.compute_cost_and_gradient,
     hvp_function=sqp_cost_matrices.hvp_analytic,
@@ -118,5 +118,5 @@ U_opt, J_opt = solver.solve(
     U_max_matrix=sqp_cost_matrices.U_max_matrix,
 )
 
-print("Optimized cost:", J_opt)
+print("Optimized cost:", solver.J_opt)
 print("Optimal input sequence:\n", U_opt)

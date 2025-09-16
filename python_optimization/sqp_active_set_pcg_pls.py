@@ -83,6 +83,8 @@ class SQP_ActiveSet_PCG_PLS:
         self._pcg_step_iterated_number = 0
         self._line_search_step_iterated_number = 0
 
+        self.J_opt = 0.0
+
     # setter
     def set_gradient_norm_zero_limit(self, limit: float):
         self._gradient_norm_zero_limit = limit
@@ -299,4 +301,6 @@ class SQP_ActiveSet_PCG_PLS:
                 alpha *= self._alpha_decay_rate
             U = U_new
 
-        return U, J
+        self.J_opt = J
+
+        return U
