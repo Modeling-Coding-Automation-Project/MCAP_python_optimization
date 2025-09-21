@@ -1193,7 +1193,7 @@ class SQP_CostMatrices_NMPC:
         yN = self.calculate_measurement_function(
             X[:, self.Np], self.state_space_parameters)
 
-        eN_y = yN - self.reference_trajectory[:, self.Np]
+        eN_y = yN - self.reference_trajectory[:, self.Np].reshape(-1, 1)
 
         Y_limit_penalty, Y_limit_active = \
             self.calculate_Y_limit_penalty_and_active(Y)

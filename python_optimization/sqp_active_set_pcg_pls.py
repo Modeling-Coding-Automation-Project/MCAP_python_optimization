@@ -162,8 +162,8 @@ class SQP_ActiveSet_PCG_PLS:
                 p, Hp, self._active_set)
 
             # Simple handling of negative curvature and semi-definiteness
+            self._pcg_step_iterated_number = pcg_iteration + 1
             if denominator <= self._pcg_php_minus_limit:
-                self._pcg_step_iterated_number = pcg_iteration + 1
                 break
 
             alpha = rz / denominator
@@ -256,8 +256,8 @@ class SQP_ActiveSet_PCG_PLS:
             # Calculate cost and gradient
             J, gradient = cost_and_gradient_function(X_initial, U)
 
+            self._solver_step_iterated_number = solver_iteration + 1
             if np.linalg.norm(gradient) < self._gradient_norm_zero_limit:
-                self._solver_step_iterated_number = solver_iteration + 1
                 break
 
             self._mask = self.free_mask(
@@ -292,10 +292,10 @@ class SQP_ActiveSet_PCG_PLS:
                 J_candidate, _ = cost_and_gradient_function(
                     X_initial, U_candidate)
 
+                self._line_search_step_iterated_number = line_search_iteration + 1
                 if J_candidate <= J or alpha < self._alpha_small_limit:
                     U_new = U_candidate
                     J = J_candidate
-                    self._line_search_step_iterated_number = line_search_iteration + 1
                     break
 
                 alpha *= self._alpha_decay_rate
