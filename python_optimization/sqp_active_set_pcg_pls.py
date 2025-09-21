@@ -279,6 +279,7 @@ class SQP_ActiveSet_PCG_PLS:
             alpha = 1.0
             U_new = U.copy()
 
+            U_updated_flag = False
             for line_search_iteration in range(self._line_search_max_iteration):
                 U_candidate = U + alpha * d
 
@@ -296,10 +297,15 @@ class SQP_ActiveSet_PCG_PLS:
                 if J_candidate <= J or alpha < self._alpha_small_limit:
                     U_new = U_candidate
                     J = J_candidate
+                    U_updated_flag = True
                     break
 
                 alpha *= self._alpha_decay_rate
-            U = U_new
+
+            if True == U_updated_flag:
+                U = U_new
+            else:
+                break
 
         self.J_opt = J
 
