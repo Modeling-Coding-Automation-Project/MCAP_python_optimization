@@ -1151,7 +1151,7 @@ class SQP_CostMatrices_NMPC:
 
             lam_next = 2.0 * self.Qx @ X[:, k] + 2.0 * \
                 Cx_k.T @ (self.Qy @ ek_y +
-                          2.0 * self.Y_min_max_rho * Y_limit_penalty[:, self.Np]) + \
+                          2.0 * self.Y_min_max_rho * Y_limit_penalty[:, k]) + \
                 A_k.T @ lam_next
 
         return J, gradient
