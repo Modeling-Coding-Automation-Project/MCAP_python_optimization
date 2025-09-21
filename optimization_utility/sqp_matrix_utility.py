@@ -1109,7 +1109,7 @@ class SQP_CostMatrices_NMPC:
         else:
             Y = np.tile(self._Y_offset.reshape((self.ny, 1)), (1, self.Np + 1))
 
-        for k in range(X.shape[0]):
+        for k in range(self.Np + 1):
             Y[:, k] += self.calculate_measurement_function(
                 X[:, k], self.state_space_parameters).flatten()
 
