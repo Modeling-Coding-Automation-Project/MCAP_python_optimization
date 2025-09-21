@@ -112,6 +112,7 @@ solver.set_solver_max_iteration(30)
 U_opt = solver.solve(
     U_initial=U_initial,
     cost_and_gradient_function=sqp_cost_matrices.compute_cost_and_gradient,
+    cost_function=sqp_cost_matrices.compute_cost,
     hvp_function=sqp_cost_matrices.hvp_analytic,
     X_initial=X_initial,
     U_min_matrix=sqp_cost_matrices.U_min_matrix,
