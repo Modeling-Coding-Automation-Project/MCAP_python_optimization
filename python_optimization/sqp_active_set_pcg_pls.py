@@ -236,19 +236,12 @@ class SQP_ActiveSet_PCG_PLS:
         self,
         U_initial: np.ndarray,
         cost_and_gradient_function: callable,
+        cost_function: callable,
         hvp_function: callable,
         X_initial: np.ndarray,
         U_min_matrix: np.ndarray,
         U_max_matrix: np.ndarray,
     ):
-        """
-        General SQP solver
-        (Active Set + Preconditioned Conjugate Gradient + Projected Line Search).
-        - U_initial: Initial input sequence (nu, N)
-        - cost_and_gradient_function(X_initial, U): Function that returns (J, gradient)
-        - hvp_function(X_initial, U, V): Function that returns HVP (H*V)
-        - U_min_matrix, U_max_matrix: Input lower and upper bounds (nu, N)
-        """
         self.X_initial = X_initial
         U = U_initial.copy()
 
@@ -290,8 +283,7 @@ class SQP_ActiveSet_PCG_PLS:
                         elif U_candidate[i, j] > U_max_matrix[i, j]:
                             U_candidate[i, j] = U_max_matrix[i, j]
 
-                J_candidate, _ = cost_and_gradient_function(
-                    X_initial, U_candidate)
+                J_candidate = cost_function(X_initial, U_candidate)
 
                 self._line_search_step_iterated_number = line_search_iteration + 1
                 if J_candidate <= J or alpha < self._alpha_small_limit:
