@@ -1072,6 +1072,59 @@ class SQP_CostMatrices_NMPC:
 
         return Y_limit_penalty, Y_limit_active
 
+    def compute_cost(
+            self,
+            X_initial: np.ndarray,
+            U: np.ndarray
+    ):
+        """
+        Computes the total cost for a given initial state and control input sequence
+        over a prediction horizon.
+        The cost function consists of state, output, and control penalties,
+        as well as penalties for violating output limits.
+        It simulates the system trajectory, computes the output measurements,
+        applies reference tracking, and aggregates
+        the cost terms for each time step and the terminal state.
+        Parameters
+        ----------
+        X_initial : np.ndarray
+            Initial state vector of the system.
+        U : np.ndarray
+            Control input sequence over the prediction horizon.
+        Returns
+        -------
+        J : float
+            The computed total cost for the given trajectory and control inputs.
+        """
+        X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
+
+        if self._Y_offset is None:
+            Y = np.zeros((self.ny, self.Np + 1))
+        else:
+            Y = np.tile(self._Y_offset.reshape((self.ny, 1)), (1, self.Np + 1))
+
+        for k in range(self.Np + 1):
+            Y[:, k] += self.calculate_measurement_function(
+                X[:, k], self.state_space_parameters).flatten()
+
+        Y_limit_penalty = self.calculate_Y_limit_penalty(Y)
+
+        J = 0.0
+        for k in range(self.Np):
+            e_y_r = Y[:, k] - self.reference_trajectory[:, k]
+            J += X[:, k].T @ self.Qx @ X[:, k] + \
+                e_y_r.T @ self.Qy @ e_y_r + U[:, k].T @ self.R @ U[:, k] + \
+                self.Y_min_max_rho * \
+                (Y_limit_penalty[:, k].T @ Y_limit_penalty[:, k])
+
+        eN_y_r = Y[:, self.Np] - self.reference_trajectory[:, self.Np]
+        J += X[:, self.Np].T @ self.Px @ X[:, self.Np] + \
+            eN_y_r.T @ self.Py @ eN_y_r + \
+            self.Y_min_max_rho * \
+            (Y_limit_penalty[:, self.Np].T @ Y_limit_penalty[:, self.Np])
+
+        return J
+
     def compute_cost_and_gradient(
             self,
             X_initial: np.ndarray,
