@@ -112,19 +112,21 @@ class SQP_CostMatrices_NMPC:
         Y_min_matrix (np.ndarray): Minimum output constraint matrix over horizon.
         Y_max_matrix (np.ndarray): Maximum output constraint matrix over horizon.
         Y_min_max_rho (float): Penalty factor for output constraints.
-        State_Jacobian_x (sp.Matrix): Jacobian of f w.r.t. x.
-        State_Jacobian_u (sp.Matrix): Jacobian of f w.r.t. u.
-        Measurement_Jacobian_x (sp.Matrix): Jacobian of h w.r.t. x.
-        Hf_xx_matrix, Hf_xu_matrix, Hf_ux_matrix, Hf_uu_matrix: Hessians of f.
-        Hh_xx_matrix: Hessians of h.
+        state_jacobian_x (sp.Matrix): Jacobian of f w.r.t. x.
+        state_jacobian_u (sp.Matrix): Jacobian of f w.r.t. u.
+        measurement_jacobian_x (sp.Matrix): Jacobian of h w.r.t. x.
+        state_hessian_xx, state_hessian_xu, state_hessian_ux, state_hessian_uu: Hessians of f.
+        measurement_hessian_xx: Hessians of h.
         state_function_code_file_name (str): Generated state function code file name.
         measurement_function_code_file_name (str): Generated measurement function code file name.
         state_jacobian_x_code_file_name (str): Generated state Jacobian w.r.t. x code file name.
         state_jacobian_u_code_file_name (str): Generated state Jacobian w.r.t. u code file name.
-        measurement_jacobian_x_code_file_name (str): Generated measurement Jacobian w.r.t. x code file name.
-        hf_xx_code_file_name, hf_xu_code_file_name,
-          hf_ux_code_file_name, hf_uu_code_file_name: Generated Hessian code file names for f.
-        hh_xx_code_file_name: Generated Hessian code file name for h.
+        measurement_jacobian_x_code_file_name (str):
+          Generated measurement Jacobian w.r.t. x code file name.
+        state_hessian_xx_code_file_name, state_hessian_xu_code_file_name,
+          state_hessian_ux_code_file_name, state_hessian_uu_code_file_name:
+            Generated Hessian code file names for f.
+        measurement_hessian_xx_code_file_name: Generated Hessian code file name for h.
         state_function_code_file_function (callable): Callable for
     """
 
@@ -215,14 +217,14 @@ class SQP_CostMatrices_NMPC:
         self.Y_min_max_rho = Y_min_max_rho
 
         # Precompute Jacobians
-        self.State_Jacobian_x = self.f.jacobian(self.x_syms)  # df/dx
-        self.State_Jacobian_u = self.f.jacobian(self.u_syms)  # df/du
-        self.Measurement_Jacobian_x = self.h.jacobian(self.x_syms)  # dh/dx
+        self.state_jacobian_x = self.f.jacobian(self.x_syms)  # df/dx
+        self.state_jacobian_u = self.f.jacobian(self.u_syms)  # df/du
+        self.measurement_jacobian_x = self.h.jacobian(self.x_syms)  # dh/dx
 
         # Precompute Hessians
-        self.Hf_xx_matrix, self.Hf_xu_matrix, self.Hf_ux_matrix, self.Hf_uu_matrix = \
+        self.state_hessian_xx, self.state_hessian_xu, self.state_hessian_ux, self.state_hessian_uu = \
             self._stack_hessians_for_f()
-        self.Hh_xx_matrix = self._stack_hessians_for_h()
+        self.measurement_hessian_xx = self._stack_hessians_for_h()
 
         # create code files
         self.state_function_code_file_name, \
@@ -236,11 +238,11 @@ class SQP_CostMatrices_NMPC:
             self.create_jacobians_numpy_code(
                 file_name_without_ext=caller_file_name_without_ext)
 
-        self.hf_xx_code_file_name, \
-            self.hf_xu_code_file_name, \
-            self.hf_ux_code_file_name, \
-            self.hf_uu_code_file_name, \
-            self.hh_xx_code_file_name = \
+        self.state_hessian_xx_code_file_name, \
+            self.state_hessian_xu_code_file_name, \
+            self.state_hessian_ux_code_file_name, \
+            self.state_hessian_uu_code_file_name, \
+            self.measurement_hessian_xx_code_file_name = \
             self.create_hessian_numpy_code(
                 file_name_without_ext=caller_file_name_without_ext)
 
@@ -261,21 +263,21 @@ class SQP_CostMatrices_NMPC:
             self.measurement_jacobian_x_code_file_name)
 
         # hessian modules
-        self.hf_xx_code_file_function = \
+        self.state_hessian_xx_code_file_function = \
             self.get_function_caller_from_python_file(
-                self.hf_xx_code_file_name)
-        self.hf_xu_code_file_function = \
+                self.state_hessian_xx_code_file_name)
+        self.state_hessian_xu_code_file_function = \
             self.get_function_caller_from_python_file(
-                self.hf_xu_code_file_name)
-        self.hf_ux_code_file_function = \
+                self.state_hessian_xu_code_file_name)
+        self.state_hessian_ux_code_file_function = \
             self.get_function_caller_from_python_file(
-                self.hf_ux_code_file_name)
-        self.hf_uu_code_file_function = \
+                self.state_hessian_ux_code_file_name)
+        self.state_hessian_uu_code_file_function = \
             self.get_function_caller_from_python_file(
-                self.hf_uu_code_file_name)
-        self.hh_xx_code_file_function = \
+                self.state_hessian_uu_code_file_name)
+        self.measurement_hessian_xx_code_file_function = \
             self.get_function_caller_from_python_file(
-                self.hh_xx_code_file_name)
+                self.measurement_hessian_xx_code_file_name)
 
         self.state_space_parameters = None
         self.reference_trajectory = None
@@ -383,11 +385,15 @@ class SQP_CostMatrices_NMPC:
         """
         Create numpy code files for Jacobians of state and measurement equations.
         Args:
-            file_name_without_ext (str): The file name without extension to use for generated code files.
+            file_name_without_ext (str):
+              The file name without extension to use for generated code files.
         Returns:
-            state_jacobian_x_code_file_name (str): The generated state Jacobian w.r.t. x code file name.
-            state_jacobian_u_code_file_name (str): The generated state Jacobian w.r.t. u code file name.
-            measurement_jacobian_x_code_file_name (str): The generated measurement Jacobian w.r.t. x code file name.
+            state_jacobian_x_code_file_name (str):
+              The generated state Jacobian w.r.t. x code file name.
+            state_jacobian_u_code_file_name (str):
+              The generated state Jacobian w.r.t. u code file name.
+            measurement_jacobian_x_code_file_name (str):
+              The generated measurement Jacobian w.r.t. x code file name.
         """
         state_jacobian_x_code_file_name = STATE_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX
         state_jacobian_u_code_file_name = STATE_JACOBIAN_U_NUMPY_CODE_FILE_NAME_SUFFIX
@@ -403,21 +409,21 @@ class SQP_CostMatrices_NMPC:
 
         # write code
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.State_Jacobian_x,
+            sym_object=self.state_jacobian_x,
             sym_object_name=os.path.splitext(
                 state_jacobian_x_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.State_Jacobian_u,
+            sym_object=self.state_jacobian_u,
             sym_object_name=os.path.splitext(
                 state_jacobian_u_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.Measurement_Jacobian_x,
+            sym_object=self.measurement_jacobian_x,
             sym_object_name=os.path.splitext(
                 measurement_jacobian_x_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
@@ -430,18 +436,18 @@ class SQP_CostMatrices_NMPC:
     def _stack_hessians_for_f(self):
         """
         returns:
-        Hf_xx: Array shape (nx, nx, nx)
-        Hf_xu: Array shape (nx, nx, nu)
-        Hf_ux: Array shape (nx, nu, nx)
-        Hf_uu: Array shape (nx, nu, nu)
+        state_hessian_xx: Array shape (nx, nx, nx)
+        state_hessian_xu: Array shape (nx, nx, nu)
+        state_hessian_ux: Array shape (nx, nu, nx)
+        state_hessian_uu: Array shape (nx, nu, nu)
         """
         nx = len(self.x_syms)
         nu = len(self.u_syms)
 
-        Hf_xx_matrix = sp.zeros(self.nx * self.nx, self.nx)
-        Hf_xu_matrix = sp.zeros(self.nx * self.nx, self.nu)
-        Hf_ux_matrix = sp.zeros(self.nx * self.nu, self.nx)
-        Hf_uu_matrix = sp.zeros(self.nx * self.nu, self.nu)
+        state_hessian_xx = sp.zeros(self.nx * self.nx, self.nx)
+        state_hessian_xu = sp.zeros(self.nx * self.nx, self.nu)
+        state_hessian_ux = sp.zeros(self.nx * self.nu, self.nx)
+        state_hessian_uu = sp.zeros(self.nx * self.nu, self.nu)
 
         for i in range(nx):
             fi = self.f[i, 0]
@@ -459,87 +465,92 @@ class SQP_CostMatrices_NMPC:
                 Hxu = sp.Matrix(np.zeros((nx, 0)))
                 Hux = sp.Matrix(np.zeros((0, nx)))
 
-            Hf_xx_matrix[i * nx:(i + 1) * nx, :] = Hxx
-            Hf_xu_matrix[i * nx:(i + 1) * nx, :] = Hxu
-            Hf_ux_matrix[i * nu:(i + 1) * nu, :] = Hux
-            Hf_uu_matrix[i * nu:(i + 1) * nu, :] = Huu
+            state_hessian_xx[i * nx:(i + 1) * nx, :] = Hxx
+            state_hessian_xu[i * nx:(i + 1) * nx, :] = Hxu
+            state_hessian_ux[i * nu:(i + 1) * nu, :] = Hux
+            state_hessian_uu[i * nu:(i + 1) * nu, :] = Huu
 
-        return Hf_xx_matrix, Hf_xu_matrix, Hf_ux_matrix, Hf_uu_matrix
+        return state_hessian_xx, state_hessian_xu, state_hessian_ux, state_hessian_uu
 
     def _stack_hessians_for_h(self):
         """
         returns:
-        Hh_xx: Array shape (ny, nx, nx)
+        measurement_hessian_xx: Array shape (ny, nx, nx)
         """
         ny = self.h.shape[0]
-        Hh_xx_matrix = sp.zeros(self.ny * self.nx, self.nx)
+        measurement_hessian_xx = sp.zeros(self.ny * self.nx, self.nx)
 
         for j in range(ny):
             hj = self.h[j, 0]
             Hxx = sp.hessian(hj, self.x_syms)  # (nx, nx)
 
-            Hh_xx_matrix[j * self.nx:(j + 1) * self.nx, :] = Hxx
+            measurement_hessian_xx[j * self.nx:(j + 1) * self.nx, :] = Hxx
 
-        return Hh_xx_matrix
+        return measurement_hessian_xx
 
     def create_hessian_numpy_code(
         self,
         file_name_without_ext: str = None
     ):
-        hf_xx_code_file_name = HESSIAN_F_XX_NUMPY_CODE_FILE_NAME_SUFFIX
-        hf_xu_code_file_name = HESSIAN_F_XU_NUMPY_CODE_FILE_NAME_SUFFIX
-        hf_ux_code_file_name = HESSIAN_F_UX_NUMPY_CODE_FILE_NAME_SUFFIX
-        hf_uu_code_file_name = HESSIAN_F_UU_NUMPY_CODE_FILE_NAME_SUFFIX
-        hh_xx_code_file_name = HESSIAN_H_XX_NUMPY_CODE_FILE_NAME_SUFFIX
+        state_hessian_xx_code_file_name = HESSIAN_F_XX_NUMPY_CODE_FILE_NAME_SUFFIX
+        state_hessian_xu_code_file_name = HESSIAN_F_XU_NUMPY_CODE_FILE_NAME_SUFFIX
+        state_hessian_ux_code_file_name = HESSIAN_F_UX_NUMPY_CODE_FILE_NAME_SUFFIX
+        state_hessian_uu_code_file_name = HESSIAN_F_UU_NUMPY_CODE_FILE_NAME_SUFFIX
+        measurement_hessian_xx_code_file_name = HESSIAN_H_XX_NUMPY_CODE_FILE_NAME_SUFFIX
 
         if file_name_without_ext is not None:
-            hf_xx_code_file_name = file_name_without_ext + \
-                "_" + hf_xx_code_file_name
-            hf_xu_code_file_name = file_name_without_ext + \
-                "_" + hf_xu_code_file_name
-            hf_ux_code_file_name = file_name_without_ext + \
-                "_" + hf_ux_code_file_name
-            hf_uu_code_file_name = file_name_without_ext + \
-                "_" + hf_uu_code_file_name
-            hh_xx_code_file_name = file_name_without_ext + \
-                "_" + hh_xx_code_file_name
+            state_hessian_xx_code_file_name = file_name_without_ext + \
+                "_" + state_hessian_xx_code_file_name
+            state_hessian_xu_code_file_name = file_name_without_ext + \
+                "_" + state_hessian_xu_code_file_name
+            state_hessian_ux_code_file_name = file_name_without_ext + \
+                "_" + state_hessian_ux_code_file_name
+            state_hessian_uu_code_file_name = file_name_without_ext + \
+                "_" + state_hessian_uu_code_file_name
+            measurement_hessian_xx_code_file_name = file_name_without_ext + \
+                "_" + measurement_hessian_xx_code_file_name
 
         # write code
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.Hf_xx_matrix,
-            sym_object_name=os.path.splitext(hf_xx_code_file_name)[0],
+            sym_object=self.state_hessian_xx,
+            sym_object_name=os.path.splitext(
+                state_hessian_xx_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.Hf_xu_matrix,
-            sym_object_name=os.path.splitext(hf_xu_code_file_name)[0],
+            sym_object=self.state_hessian_xu,
+            sym_object_name=os.path.splitext(
+                state_hessian_xu_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.Hf_ux_matrix,
-            sym_object_name=os.path.splitext(hf_ux_code_file_name)[0],
+            sym_object=self.state_hessian_ux,
+            sym_object_name=os.path.splitext(
+                state_hessian_ux_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.Hf_uu_matrix,
-            sym_object_name=os.path.splitext(hf_uu_code_file_name)[0],
+            sym_object=self.state_hessian_uu,
+            sym_object_name=os.path.splitext(
+                state_hessian_uu_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.Hh_xx_matrix,
-            sym_object_name=os.path.splitext(hh_xx_code_file_name)[0],
+            sym_object=self.measurement_hessian_xx,
+            sym_object_name=os.path.splitext(
+                measurement_hessian_xx_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
-        return hf_xx_code_file_name, \
-            hf_xu_code_file_name, \
-            hf_ux_code_file_name, \
-            hf_uu_code_file_name, \
-            hh_xx_code_file_name
+        return state_hessian_xx_code_file_name, \
+            state_hessian_xu_code_file_name, \
+            state_hessian_ux_code_file_name, \
+            state_hessian_uu_code_file_name, \
+            measurement_hessian_xx_code_file_name
 
     def get_function_caller_from_python_file(
             self,
@@ -785,7 +796,7 @@ class SQP_CostMatrices_NMPC:
 
         out = np.zeros((self.nx, 1), dtype=float)
 
-        Hf_xx = self.hf_xx_code_file_function(
+        Hf_xx = self.state_hessian_xx_code_file_function(
             X, U, Parameters)
 
         for i in range(self.nx):
@@ -829,7 +840,7 @@ class SQP_CostMatrices_NMPC:
 
         out = np.zeros((self.nx, 1), dtype=float)
 
-        Hf_xu = self.hf_xu_code_file_function(
+        Hf_xu = self.state_hessian_xu_code_file_function(
             X, U, Parameters)
 
         if self.nu == 0:
@@ -880,7 +891,7 @@ class SQP_CostMatrices_NMPC:
 
         out = np.zeros((self.nu, 1), dtype=float)
 
-        Hf_ux = self.hf_ux_code_file_function(
+        Hf_ux = self.state_hessian_ux_code_file_function(
             X, U, Parameters)
 
         if self.nu == 0:
@@ -916,7 +927,7 @@ class SQP_CostMatrices_NMPC:
         Args:
             X (np.ndarray): State vector, shape (nx, 1) or (nx,).
             U (np.ndarray): Control vector, shape (nu, 1) or (nu,).
-            Parameters: Additional parameters required by hf_uu_code_file_function.
+            Parameters: Additional parameters required by state_hessian_uu_code_file_function.
             lam_next (np.ndarray): Multipliers for each state variable, shape (nx, 1) or (nx,).
             dU (np.ndarray): Direction vector for control variables, shape (nu, 1) or (nu,).
 
@@ -930,7 +941,7 @@ class SQP_CostMatrices_NMPC:
 
         out = np.zeros((self.nu, 1), dtype=float)
 
-        Hf_uu = self.hf_uu_code_file_function(
+        Hf_uu = self.state_hessian_uu_code_file_function(
             X, U, Parameters)
 
         if self.nu == 0:
@@ -973,7 +984,7 @@ class SQP_CostMatrices_NMPC:
 
         out = np.zeros((self.nx, 1), dtype=float)
 
-        Hh_xx = self.hh_xx_code_file_function(
+        Hh_xx = self.measurement_hessian_xx_code_file_function(
             X, U, Parameters)
 
         for i in range(self.ny):
@@ -1152,7 +1163,8 @@ class SQP_CostMatrices_NMPC:
         Notes
         -----
         - The function assumes that system parameters and reference trajectory are set prior to invocation.
-        - The cost function includes state, output, and control penalties over the horizon, as well as terminal penalties.
+        - The cost function includes state, output,
+          and control penalties over the horizon, as well as terminal penalties.
         - The gradient is computed using backward recursion with adjoint variables.
         """
         X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
@@ -1228,7 +1240,8 @@ class SQP_CostMatrices_NMPC:
             U (np.ndarray): Control input trajectory of shape (nu, Np).
             V (np.ndarray): Directional vector for control inputs of shape (nu, Np).
         Returns:
-            np.ndarray: Hessian-vector product with respect to control inputs, shape (nu, Np).
+            np.ndarray: Hessian-vector product with respect to
+              control inputs, shape (nu, Np).
         Notes:
             - The method assumes the existence of system dynamics,
               measurement functions, and their derivatives.
