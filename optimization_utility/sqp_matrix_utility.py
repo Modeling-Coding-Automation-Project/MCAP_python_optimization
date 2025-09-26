@@ -112,9 +112,9 @@ class SQP_CostMatrices_NMPC:
         Y_min_matrix (np.ndarray): Minimum output constraint matrix over horizon.
         Y_max_matrix (np.ndarray): Maximum output constraint matrix over horizon.
         Y_min_max_rho (float): Penalty factor for output constraints.
-        A_matrix (sp.Matrix): Jacobian of f w.r.t. x.
-        B_matrix (sp.Matrix): Jacobian of f w.r.t. u.
-        C_matrix (sp.Matrix): Jacobian of h w.r.t. x.
+        State_Jacobian_x (sp.Matrix): Jacobian of f w.r.t. x.
+        State_Jacobian_u (sp.Matrix): Jacobian of f w.r.t. u.
+        Measurement_Jacobian_x (sp.Matrix): Jacobian of h w.r.t. x.
         Hf_xx_matrix, Hf_xu_matrix, Hf_ux_matrix, Hf_uu_matrix: Hessians of f.
         Hh_xx_matrix: Hessians of h.
         state_function_code_file_name (str): Generated state function code file name.
@@ -215,9 +215,9 @@ class SQP_CostMatrices_NMPC:
         self.Y_min_max_rho = Y_min_max_rho
 
         # Precompute Jacobians
-        self.A_matrix = self.f.jacobian(self.x_syms)  # df/dx
-        self.B_matrix = self.f.jacobian(self.u_syms)  # df/du
-        self.C_matrix = self.h.jacobian(self.x_syms)  # dh/dx
+        self.State_Jacobian_x = self.f.jacobian(self.x_syms)  # df/dx
+        self.State_Jacobian_u = self.f.jacobian(self.u_syms)  # df/du
+        self.Measurement_Jacobian_x = self.h.jacobian(self.x_syms)  # dh/dx
 
         # Precompute Hessians
         self.Hf_xx_matrix, self.Hf_xu_matrix, self.Hf_ux_matrix, self.Hf_uu_matrix = \
@@ -403,21 +403,21 @@ class SQP_CostMatrices_NMPC:
 
         # write code
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.A_matrix,
+            sym_object=self.State_Jacobian_x,
             sym_object_name=os.path.splitext(
                 state_jacobian_x_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.B_matrix,
+            sym_object=self.State_Jacobian_u,
             sym_object_name=os.path.splitext(
                 state_jacobian_u_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
-            sym_object=self.C_matrix,
+            sym_object=self.Measurement_Jacobian_x,
             sym_object_name=os.path.splitext(
                 measurement_jacobian_x_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
