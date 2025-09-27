@@ -1210,9 +1210,9 @@ class SQP_CostMatrices_NMPC:
         # terminal adjoint
         C_N = self.calculate_measurement_jacobian_x(
             X_horizon[:, self.Np], self.state_space_parameters)
-        lam_next = (2.0 * self.Px) @ X_horizon[:, self.Np] + \
-            C_N.T @ (2.0 * self.Py @ eN_y_r +
-                     2.0 * self.Y_min_max_rho * Y_limit_penalty[:, self.Np])
+        lam_next = 2.0 * ((self.Px) @ X_horizon[:, self.Np] +
+                          C_N.T @ (self.Py @ eN_y_r +
+                                   self.Y_min_max_rho * Y_limit_penalty[:, self.Np]))
 
         gradient = np.zeros_like(U_horizon)
         for k in reversed(range(self.Np)):
@@ -1227,9 +1227,9 @@ class SQP_CostMatrices_NMPC:
 
             gradient[:, k] = 2.0 * self.R @ U_horizon[:, k] + B_k.T @ lam_next
 
-            lam_next = 2.0 * self.Qx @ X_horizon[:, k] + 2.0 * \
-                Cx_k.T @ (self.Qy @ ek_y +
-                          2.0 * self.Y_min_max_rho * Y_limit_penalty[:, k]) + \
+            lam_next = 2.0 * (self.Qx @ X_horizon[:, k] +
+                              Cx_k.T @ (self.Qy @ ek_y +
+                                        2.0 * self.Y_min_max_rho * Y_limit_penalty[:, k])) + \
                 A_k.T @ lam_next
 
         return J, gradient
