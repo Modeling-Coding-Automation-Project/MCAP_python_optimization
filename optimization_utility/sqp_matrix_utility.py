@@ -999,14 +999,14 @@ class SQP_CostMatrices_NMPC:
     def simulate_trajectory(
         self,
         X_initial: np.ndarray,
-        U: np.ndarray,
+        U_horizon: np.ndarray,
         Parameters
     ):
         """
         Simulates the trajectory of the system over a prediction horizon.
         Args:
             X_initial (np.ndarray): Initial state vector of the system (shape: [nx,]).
-            U (np.ndarray): Control input sequence over the prediction horizon
+            U_horizon (np.ndarray): Control input sequence over the prediction horizon
               (shape: [nu, Np]).
             Parameters: Additional parameters required by the state function.
         Returns:
@@ -1017,11 +1017,11 @@ class SQP_CostMatrices_NMPC:
         X[:, 0] = X_initial.flatten()
         for k in range(self.Np):
             X[:, k + 1] = self.calculate_state_function(
-                X[:, k], U[:, k], Parameters).flatten()
+                X[:, k], U_horizon[:, k], Parameters).flatten()
 
         return X
 
-    def calculate_Y_limit_penalty(self, Y: np.ndarray):
+    def calculate_Y_limit_penalty(self, Y_horizon: np.ndarray):
         """
         Calculates the penalty matrix Y_limit_penalty for the given output matrix
           Y based on minimum and maximum constraints.
@@ -1034,23 +1034,26 @@ class SQP_CostMatrices_NMPC:
               the penalty is Y[i, j] - self.Y_max_matrix[i, j].
             - Otherwise, the penalty is 0.
         Args:
-            Y (np.ndarray): Output matrix of shape (self.ny, self.Np + 1)
+            Y_horizon (np.ndarray): Output matrix of shape (self.ny, self.Np + 1)
               to be checked against constraints.
         Returns:
-            np.ndarray: Penalty matrix of the same shape as Y,
+            np.ndarray: Penalty matrix of the same shape as Y_horizon,
               containing the calculated penalties.
         """
         Y_limit_penalty = np.zeros((self.ny, self.Np + 1))
+
         for i in range(self.ny):
             for j in range(self.Np + 1):
-                if Y[i, j] < self.Y_min_matrix[i, j]:
-                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_min_matrix[i, j]
-                elif Y[i, j] > self.Y_max_matrix[i, j]:
-                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_max_matrix[i, j]
+                if Y_horizon[i, j] < self.Y_min_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y_horizon[i, j] - \
+                        self.Y_min_matrix[i, j]
+                elif Y_horizon[i, j] > self.Y_max_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y_horizon[i, j] - \
+                        self.Y_max_matrix[i, j]
 
         return Y_limit_penalty
 
-    def calculate_Y_limit_penalty_and_active(self, Y: np.ndarray):
+    def calculate_Y_limit_penalty_and_active(self, Y_horizon: np.ndarray):
         """
         Calculates the penalty and activation matrices for output variable limits.
         For each output variable and prediction step,
@@ -1061,7 +1064,7 @@ class SQP_CostMatrices_NMPC:
           the violated limit, and the corresponding
         entry in the activation matrix is set to 1.0.
         Args:
-            Y (np.ndarray): Array of output variable values with shape (ny, Np + 1).
+            Y_horizon (np.ndarray): Array of output variable values with shape (ny, Np + 1).
         Returns:
             Tuple[np.ndarray, np.ndarray]:
                 - Y_limit_penalty (np.ndarray): Matrix of penalties for limit violations,
@@ -1074,11 +1077,13 @@ class SQP_CostMatrices_NMPC:
 
         for i in range(self.ny):
             for j in range(self.Np + 1):
-                if Y[i, j] < self.Y_min_matrix[i, j]:
-                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_min_matrix[i, j]
+                if Y_horizon[i, j] < self.Y_min_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y_horizon[i, j] - \
+                        self.Y_min_matrix[i, j]
                     Y_limit_active[i, j] = 1.0
-                elif Y[i, j] > self.Y_max_matrix[i, j]:
-                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_max_matrix[i, j]
+                elif Y_horizon[i, j] > self.Y_max_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y_horizon[i, j] - \
+                        self.Y_max_matrix[i, j]
                     Y_limit_active[i, j] = 1.0
 
         return Y_limit_penalty, Y_limit_active
@@ -1086,7 +1091,7 @@ class SQP_CostMatrices_NMPC:
     def compute_cost(
             self,
             X_initial: np.ndarray,
-            U: np.ndarray
+            U_horizon: np.ndarray
     ):
         """
         Computes the total cost for a given initial state and control input sequence
@@ -1100,35 +1105,37 @@ class SQP_CostMatrices_NMPC:
         ----------
         X_initial : np.ndarray
             Initial state vector of the system.
-        U : np.ndarray
+        U_horizon : np.ndarray
             Control input sequence over the prediction horizon.
         Returns
         -------
         J : float
             The computed total cost for the given trajectory and control inputs.
         """
-        X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
+        X = self.simulate_trajectory(
+            X_initial, U_horizon, self.state_space_parameters)
 
         if self._Y_offset is None:
-            Y = np.zeros((self.ny, self.Np + 1))
+            Y_horizon = np.zeros((self.ny, self.Np + 1))
         else:
-            Y = np.tile(self._Y_offset.reshape((self.ny, 1)), (1, self.Np + 1))
+            Y_horizon = np.tile(self._Y_offset.reshape(
+                (self.ny, 1)), (1, self.Np + 1))
 
         for k in range(self.Np + 1):
-            Y[:, k] += self.calculate_measurement_function(
+            Y_horizon[:, k] += self.calculate_measurement_function(
                 X[:, k], self.state_space_parameters).flatten()
 
-        Y_limit_penalty = self.calculate_Y_limit_penalty(Y)
+        Y_limit_penalty = self.calculate_Y_limit_penalty(Y_horizon)
 
         J = 0.0
         for k in range(self.Np):
-            e_y_r = Y[:, k] - self.reference_trajectory[:, k]
+            e_y_r = Y_horizon[:, k] - self.reference_trajectory[:, k]
             J += X[:, k].T @ self.Qx @ X[:, k] + \
-                e_y_r.T @ self.Qy @ e_y_r + U[:, k].T @ self.R @ U[:, k] + \
+                e_y_r.T @ self.Qy @ e_y_r + U_horizon[:, k].T @ self.R @ U_horizon[:, k] + \
                 self.Y_min_max_rho * \
                 (Y_limit_penalty[:, k].T @ Y_limit_penalty[:, k])
 
-        eN_y_r = Y[:, self.Np] - self.reference_trajectory[:, self.Np]
+        eN_y_r = Y_horizon[:, self.Np] - self.reference_trajectory[:, self.Np]
         J += X[:, self.Np].T @ self.Px @ X[:, self.Np] + \
             eN_y_r.T @ self.Py @ eN_y_r + \
             self.Y_min_max_rho * \
@@ -1139,7 +1146,7 @@ class SQP_CostMatrices_NMPC:
     def compute_cost_and_gradient(
             self,
             X_initial: np.ndarray,
-            U: np.ndarray
+            U_horizon: np.ndarray
     ):
         """
         Computes the cost function value and its gradient with respect to the control input sequence
@@ -1152,7 +1159,7 @@ class SQP_CostMatrices_NMPC:
         ----------
         X_initial : np.ndarray
             The initial state vector of the system.
-        U : np.ndarray
+        U_horizon : np.ndarray
             The control input sequence over the prediction horizon, with shape (nu, Np).
         Returns
         -------
@@ -1167,28 +1174,30 @@ class SQP_CostMatrices_NMPC:
           and control penalties over the horizon, as well as terminal penalties.
         - The gradient is computed using backward recursion with adjoint variables.
         """
-        X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
+        X = self.simulate_trajectory(
+            X_initial, U_horizon, self.state_space_parameters)
 
         if self._Y_offset is None:
-            Y = np.zeros((self.ny, self.Np + 1))
+            Y_horizon = np.zeros((self.ny, self.Np + 1))
         else:
-            Y = np.tile(self._Y_offset.reshape((self.ny, 1)), (1, self.Np + 1))
+            Y_horizon = np.tile(self._Y_offset.reshape(
+                (self.ny, 1)), (1, self.Np + 1))
 
         for k in range(self.Np + 1):
-            Y[:, k] += self.calculate_measurement_function(
+            Y_horizon[:, k] += self.calculate_measurement_function(
                 X[:, k], self.state_space_parameters).flatten()
 
-        Y_limit_penalty = self.calculate_Y_limit_penalty(Y)
+        Y_limit_penalty = self.calculate_Y_limit_penalty(Y_horizon)
 
         J = 0.0
         for k in range(self.Np):
-            e_y_r = Y[:, k] - self.reference_trajectory[:, k]
+            e_y_r = Y_horizon[:, k] - self.reference_trajectory[:, k]
             J += X[:, k].T @ self.Qx @ X[:, k] + \
-                e_y_r.T @ self.Qy @ e_y_r + U[:, k].T @ self.R @ U[:, k] + \
+                e_y_r.T @ self.Qy @ e_y_r + U_horizon[:, k].T @ self.R @ U_horizon[:, k] + \
                 self.Y_min_max_rho * \
                 (Y_limit_penalty[:, k].T @ Y_limit_penalty[:, k])
 
-        eN_y_r = Y[:, self.Np] - self.reference_trajectory[:, self.Np]
+        eN_y_r = Y_horizon[:, self.Np] - self.reference_trajectory[:, self.Np]
         J += X[:, self.Np].T @ self.Px @ X[:, self.Np] + \
             eN_y_r.T @ self.Py @ eN_y_r + \
             self.Y_min_max_rho * \
@@ -1201,18 +1210,18 @@ class SQP_CostMatrices_NMPC:
             C_N.T @ (2.0 * self.Py @ eN_y_r +
                      2.0 * self.Y_min_max_rho * Y_limit_penalty[:, self.Np])
 
-        gradient = np.zeros_like(U)
+        gradient = np.zeros_like(U_horizon)
         for k in reversed(range(self.Np)):
             Cx_k = self.calculate_measurement_jacobian_x(
                 X[:, k], self.state_space_parameters)
-            ek_y = Y[:, k] - self.reference_trajectory[:, k]
+            ek_y = Y_horizon[:, k] - self.reference_trajectory[:, k]
 
             A_k = self.calculate_state_jacobian_x(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
             B_k = self.calculate_state_jacobian_u(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
 
-            gradient[:, k] = 2.0 * self.R @ U[:, k] + B_k.T @ lam_next
+            gradient[:, k] = 2.0 * self.R @ U_horizon[:, k] + B_k.T @ lam_next
 
             lam_next = 2.0 * self.Qx @ X[:, k] + 2.0 * \
                 Cx_k.T @ (self.Qy @ ek_y +
@@ -1224,8 +1233,8 @@ class SQP_CostMatrices_NMPC:
     def hvp_analytic(
             self,
             X_initial: np.ndarray,
-            U: np.ndarray,
-            V: np.ndarray
+            U_horizon: np.ndarray,
+            V_horizon: np.ndarray
     ):
         """
         Computes the Hessian-vector product (HVP) analytically
@@ -1237,8 +1246,8 @@ class SQP_CostMatrices_NMPC:
         obtain the HVP with respect to the control input direction V.
         Args:
             X_initial (np.ndarray): Initial state vector of shape (nx,).
-            U (np.ndarray): Control input trajectory of shape (nu, Np).
-            V (np.ndarray): Directional vector for control inputs of shape (nu, Np).
+            U_horizon (np.ndarray): Control input trajectory of shape (nu, Np).
+            V_horizon (np.ndarray): Directional vector for control inputs of shape (nu, Np).
         Returns:
             np.ndarray: Hessian-vector product with respect to
               control inputs, shape (nu, Np).
@@ -1251,7 +1260,8 @@ class SQP_CostMatrices_NMPC:
               such as SQP or Newton-type methods.
         """
         # --- 1) forward states
-        X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
+        X = self.simulate_trajectory(
+            X_initial, U_horizon, self.state_space_parameters)
         Y = np.zeros((self.ny, self.Np + 1))
         for k in range(self.Np + 1):
             Y[:, k] = self.calculate_measurement_function(
@@ -1276,7 +1286,7 @@ class SQP_CostMatrices_NMPC:
 
         for k in range(self.Np - 1, -1, -1):
             A_k = self.calculate_state_jacobian_x(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
             Cx_k = self.calculate_measurement_jacobian_x(
                 X[:, k], self.state_space_parameters)
             ek_y = Y[:, k] - self.reference_trajectory[:, k]
@@ -1290,10 +1300,10 @@ class SQP_CostMatrices_NMPC:
         dx = np.zeros((self.nx, self.Np + 1))
         for k in range(self.Np):
             A_k = self.calculate_state_jacobian_x(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
             B_k = self.calculate_state_jacobian_u(
-                X[:, k], U[:, k], self.state_space_parameters)
-            dx[:, k + 1] = A_k @ dx[:, k] + B_k @ V[:, k]
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
+            dx[:, k + 1] = A_k @ dx[:, k] + B_k @ V_horizon[:, k]
 
         # --- 4) backward second-order adjoint ---
         d_lambda = np.zeros((self.nx, self.Np + 1))
@@ -1320,12 +1330,12 @@ class SQP_CostMatrices_NMPC:
 
         d_lambda[:, self.Np] += CX_N_T_penalty_CX_N_dx.flatten()
 
-        Hu = np.zeros_like(U)
+        Hu = np.zeros_like(U_horizon)
         for k in range(self.Np - 1, -1, -1):
             A_k = self.calculate_state_jacobian_x(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
             B_k = self.calculate_state_jacobian_u(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
             Cx_k = self.calculate_measurement_jacobian_x(
                 X[:, k], self.state_space_parameters)
             ek_y = Y[:, k] - self.reference_trajectory[:, k]
@@ -1345,13 +1355,13 @@ class SQP_CostMatrices_NMPC:
             )
 
             term_xx = self.fx_xx_lambda_contract(
-                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
+                X[:, k], U_horizon[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
             term_xu = self.fx_xu_lambda_contract(
-                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], V[:, k])
+                X[:, k], U_horizon[:, k], self.state_space_parameters, lam[:, k + 1], V_horizon[:, k])
 
             d_lambda[:, k] = \
-                (self.l_xx(X[:, k], U[:, k]) @ dx[:, k]).flatten() + \
-                (self.l_xu(X[:, k], U[:, k]) @ V[:, k]).flatten() + \
+                (self.l_xx(X[:, k], U_horizon[:, k]) @ dx[:, k]).flatten() + \
+                (self.l_xu(X[:, k], U_horizon[:, k]) @ V_horizon[:, k]).flatten() + \
                 (A_k.T @ d_lambda[:, k + 1]).flatten() + \
                 term_Qy_GN.flatten() + \
                 term_Qy_hxx.flatten() + \
@@ -1364,13 +1374,13 @@ class SQP_CostMatrices_NMPC:
             #   2R V + B^T dlambda_{k+1} + second-order terms from dynamics
             #   (Cu=0 -> no direct contribution from output terms)
             term_ux = self.fu_xx_lambda_contract(
-                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
+                X[:, k], U_horizon[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
             term_uu = self.fu_uu_lambda_contract(
-                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], V[:, k])
+                X[:, k], U_horizon[:, k], self.state_space_parameters, lam[:, k + 1], V_horizon[:, k])
 
             Hu[:, k] = \
-                (self.l_uu(X[:, k], U[:, k]) @ V[:, k]).flatten() + \
-                (self.l_ux(X[:, k], U[:, k]) @ dx[:, k]).flatten() + \
+                (self.l_uu(X[:, k], U_horizon[:, k]) @ V_horizon[:, k]).flatten() + \
+                (self.l_ux(X[:, k], U_horizon[:, k]) @ dx[:, k]).flatten() + \
                 (B_k.T @ d_lambda[:, k + 1]).flatten() + \
                 term_ux.flatten() + term_uu.flatten()
 
