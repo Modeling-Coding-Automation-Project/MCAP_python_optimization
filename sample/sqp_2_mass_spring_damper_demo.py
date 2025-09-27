@@ -114,7 +114,7 @@ sqp_cost_matrices.reference_trajectory = reference_trajectory
 
 
 X_initial = np.array([[5.0], [0.0], [5.0], [0.0]])
-U_initial = np.zeros((nu, N))
+U_horizon_initial = np.zeros((nu, N))
 
 solver = SQP_ActiveSet_PCG_PLS(
     U_size=(nu, N)
@@ -122,7 +122,7 @@ solver = SQP_ActiveSet_PCG_PLS(
 solver.set_solver_max_iteration(20)
 
 U_opt = solver.solve(
-    U_initial=U_initial,
+    U_horizon_initial=U_horizon_initial,
     cost_and_gradient_function=sqp_cost_matrices.compute_cost_and_gradient,
     cost_function=sqp_cost_matrices.compute_cost,
     hvp_function=sqp_cost_matrices.hvp_analytic,
