@@ -133,9 +133,37 @@ class SQP_ActiveSet_PCG_PLS:
         M_inv=None
     ):
         """
-        Solve the system hvp_function(d) = rhs using PCG without matrix.
-        hvp_function: function v -> H v
-        M_inv: pre-conditioner (None or vector/function).
+        Solves a linear system using the Preconditioned Conjugate Gradient
+          (PCG) method.
+
+        This method iteratively solves for the search direction `d`
+          in a quadratic optimization problem,
+        applying a preconditioner to accelerate convergence.
+          The PCG algorithm is terminated either when
+        the residual norm falls below a specified tolerance or when
+          a maximum number of iterations is reached.
+        Handles negative curvature and semi-definite cases by early termination.
+
+        Args:
+            rhs (np.ndarray): The right-hand side vector of the
+              linear system to solve.
+            M_inv (np.ndarray, optional): The preconditioner matrix
+              (inverse or approximation of the Hessian diagonal).
+                If None, no preconditioning is applied.
+
+        Returns:
+            np.ndarray: The computed search direction vector `d`
+              that approximately solves the system.
+
+        Notes:
+            - Uses methods from `ActiveSet2D_MatrixOperator`
+              for vector operations restricted to the active set.
+            - Relies on class attributes such as `_active_set`,
+              `_pcg_max_iteration`, `_lambda_factor`,
+                `_pcg_php_minus_limit`, and `_pcg_tol`.
+            - The Hessian-vector product is computed via `self.hvp_function`.
+            - Early termination occurs if negative curvature is detected
+              or the residual norm is sufficiently small.
         """
         d = np.zeros_like(rhs)
 
@@ -263,6 +291,27 @@ class SQP_ActiveSet_PCG_PLS:
         U_min_matrix: np.ndarray,
         U_max_matrix: np.ndarray,
     ):
+        """
+        Solves a constrained optimization problem using
+          Sequential Quadratic Programming (SQP)
+        with an active set method and preconditioned conjugate gradient (PCG)
+          for the search direction.
+        Args:
+            U_horizon_initial (np.ndarray): Initial guess for the
+              control horizon variables.
+            cost_and_gradient_function (callable): Function that computes
+              the cost and its gradient given state and control variables.
+            cost_function (callable): Function that computes the cost
+              given state and control variables.
+            hvp_function (callable): Function that computes Hessian-vector products
+              for the optimization.
+            X_initial (np.ndarray): Initial state variables.
+            U_min_matrix (np.ndarray): Lower bounds for the control variables.
+            U_max_matrix (np.ndarray): Upper bounds for the control variables.
+        Returns:
+            np.ndarray: Optimized control horizon variables that minimize
+              the cost function subject to bounds.
+        """
         self.X_initial = X_initial
         U_horizon = U_horizon_initial.copy()
 
