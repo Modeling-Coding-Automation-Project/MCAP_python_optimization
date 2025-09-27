@@ -1013,13 +1013,13 @@ class SQP_CostMatrices_NMPC:
             np.ndarray: Simulated state trajectory over the prediction horizon
               (shape: [nx, Np + 1]).
         """
-        X = np.zeros((self.nx, self.Np + 1))
-        X[:, 0] = X_initial.flatten()
+        X_horizon = np.zeros((self.nx, self.Np + 1))
+        X_horizon[:, 0] = X_initial.flatten()
         for k in range(self.Np):
-            X[:, k + 1] = self.calculate_state_function(
-                X[:, k], U_horizon[:, k], Parameters).flatten()
+            X_horizon[:, k + 1] = self.calculate_state_function(
+                X_horizon[:, k], U_horizon[:, k], Parameters).flatten()
 
-        return X
+        return X_horizon
 
     def calculate_Y_limit_penalty(self, Y_horizon: np.ndarray):
         """
