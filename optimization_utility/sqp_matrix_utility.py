@@ -999,14 +999,14 @@ class SQP_CostMatrices_NMPC:
     def simulate_trajectory(
         self,
         X_initial: np.ndarray,
-        U: np.ndarray,
+        U_horizon: np.ndarray,
         Parameters
     ):
         """
         Simulates the trajectory of the system over a prediction horizon.
         Args:
             X_initial (np.ndarray): Initial state vector of the system (shape: [nx,]).
-            U (np.ndarray): Control input sequence over the prediction horizon
+            U_horizon (np.ndarray): Control input sequence over the prediction horizon
               (shape: [nu, Np]).
             Parameters: Additional parameters required by the state function.
         Returns:
@@ -1017,11 +1017,11 @@ class SQP_CostMatrices_NMPC:
         X[:, 0] = X_initial.flatten()
         for k in range(self.Np):
             X[:, k + 1] = self.calculate_state_function(
-                X[:, k], U[:, k], Parameters).flatten()
+                X[:, k], U_horizon[:, k], Parameters).flatten()
 
         return X
 
-    def calculate_Y_limit_penalty(self, Y: np.ndarray):
+    def calculate_Y_limit_penalty(self, Y_horizon: np.ndarray):
         """
         Calculates the penalty matrix Y_limit_penalty for the given output matrix
           Y based on minimum and maximum constraints.
@@ -1034,23 +1034,26 @@ class SQP_CostMatrices_NMPC:
               the penalty is Y[i, j] - self.Y_max_matrix[i, j].
             - Otherwise, the penalty is 0.
         Args:
-            Y (np.ndarray): Output matrix of shape (self.ny, self.Np + 1)
+            Y_horizon (np.ndarray): Output matrix of shape (self.ny, self.Np + 1)
               to be checked against constraints.
         Returns:
-            np.ndarray: Penalty matrix of the same shape as Y,
+            np.ndarray: Penalty matrix of the same shape as Y_horizon,
               containing the calculated penalties.
         """
         Y_limit_penalty = np.zeros((self.ny, self.Np + 1))
+
         for i in range(self.ny):
             for j in range(self.Np + 1):
-                if Y[i, j] < self.Y_min_matrix[i, j]:
-                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_min_matrix[i, j]
-                elif Y[i, j] > self.Y_max_matrix[i, j]:
-                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_max_matrix[i, j]
+                if Y_horizon[i, j] < self.Y_min_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y_horizon[i, j] - \
+                        self.Y_min_matrix[i, j]
+                elif Y_horizon[i, j] > self.Y_max_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y_horizon[i, j] - \
+                        self.Y_max_matrix[i, j]
 
         return Y_limit_penalty
 
-    def calculate_Y_limit_penalty_and_active(self, Y: np.ndarray):
+    def calculate_Y_limit_penalty_and_active(self, Y_horizon: np.ndarray):
         """
         Calculates the penalty and activation matrices for output variable limits.
         For each output variable and prediction step,
@@ -1061,7 +1064,7 @@ class SQP_CostMatrices_NMPC:
           the violated limit, and the corresponding
         entry in the activation matrix is set to 1.0.
         Args:
-            Y (np.ndarray): Array of output variable values with shape (ny, Np + 1).
+            Y_horizon (np.ndarray): Array of output variable values with shape (ny, Np + 1).
         Returns:
             Tuple[np.ndarray, np.ndarray]:
                 - Y_limit_penalty (np.ndarray): Matrix of penalties for limit violations,
@@ -1074,11 +1077,13 @@ class SQP_CostMatrices_NMPC:
 
         for i in range(self.ny):
             for j in range(self.Np + 1):
-                if Y[i, j] < self.Y_min_matrix[i, j]:
-                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_min_matrix[i, j]
+                if Y_horizon[i, j] < self.Y_min_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y_horizon[i, j] - \
+                        self.Y_min_matrix[i, j]
                     Y_limit_active[i, j] = 1.0
-                elif Y[i, j] > self.Y_max_matrix[i, j]:
-                    Y_limit_penalty[i, j] = Y[i, j] - self.Y_max_matrix[i, j]
+                elif Y_horizon[i, j] > self.Y_max_matrix[i, j]:
+                    Y_limit_penalty[i, j] = Y_horizon[i, j] - \
+                        self.Y_max_matrix[i, j]
                     Y_limit_active[i, j] = 1.0
 
         return Y_limit_penalty, Y_limit_active
