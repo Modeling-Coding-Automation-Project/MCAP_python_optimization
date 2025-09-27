@@ -1295,9 +1295,10 @@ class SQP_CostMatrices_NMPC:
                 X_horizon[:, k], self.state_space_parameters)
             ek_y = Y_horizon[:, k] - self.reference_trajectory[:, k]
 
-            lam[:, k] = 2.0 * self.Qx @ X_horizon[:, k] + \
-                Cx_k.T @ (2.0 * self.Qy @ ek_y +
-                          2.0 * self.Y_min_max_rho * Y_limit_penalty[:, k]) + \
+            lam[:, k] = \
+                2.0 * (self.Qx @ X_horizon[:, k] +
+                       Cx_k.T @ (self.Qy @ ek_y +
+                                 self.Y_min_max_rho * Y_limit_penalty[:, k])) + \
                 A_k.T @ lam[:, k + 1]
 
         # --- 3) forward directional state: delta_x ---
