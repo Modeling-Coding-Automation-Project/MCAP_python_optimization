@@ -1112,7 +1112,7 @@ class SQP_CostMatrices_NMPC:
         J : float
             The computed total cost for the given trajectory and control inputs.
         """
-        X = self.simulate_trajectory(
+        X_horizon = self.simulate_trajectory(
             X_initial, U_horizon, self.state_space_parameters)
 
         if self._Y_offset is None:
@@ -1123,20 +1123,20 @@ class SQP_CostMatrices_NMPC:
 
         for k in range(self.Np + 1):
             Y_horizon[:, k] += self.calculate_measurement_function(
-                X[:, k], self.state_space_parameters).flatten()
+                X_horizon[:, k], self.state_space_parameters).flatten()
 
         Y_limit_penalty = self.calculate_Y_limit_penalty(Y_horizon)
 
         J = 0.0
         for k in range(self.Np):
             e_y_r = Y_horizon[:, k] - self.reference_trajectory[:, k]
-            J += X[:, k].T @ self.Qx @ X[:, k] + \
+            J += X_horizon[:, k].T @ self.Qx @ X_horizon[:, k] + \
                 e_y_r.T @ self.Qy @ e_y_r + U_horizon[:, k].T @ self.R @ U_horizon[:, k] + \
                 self.Y_min_max_rho * \
                 (Y_limit_penalty[:, k].T @ Y_limit_penalty[:, k])
 
         eN_y_r = Y_horizon[:, self.Np] - self.reference_trajectory[:, self.Np]
-        J += X[:, self.Np].T @ self.Px @ X[:, self.Np] + \
+        J += X_horizon[:, self.Np].T @ self.Px @ X_horizon[:, self.Np] + \
             eN_y_r.T @ self.Py @ eN_y_r + \
             self.Y_min_max_rho * \
             (Y_limit_penalty[:, self.Np].T @ Y_limit_penalty[:, self.Np])
@@ -1174,7 +1174,7 @@ class SQP_CostMatrices_NMPC:
           and control penalties over the horizon, as well as terminal penalties.
         - The gradient is computed using backward recursion with adjoint variables.
         """
-        X = self.simulate_trajectory(
+        X_horizon = self.simulate_trajectory(
             X_initial, U_horizon, self.state_space_parameters)
 
         if self._Y_offset is None:
@@ -1185,45 +1185,45 @@ class SQP_CostMatrices_NMPC:
 
         for k in range(self.Np + 1):
             Y_horizon[:, k] += self.calculate_measurement_function(
-                X[:, k], self.state_space_parameters).flatten()
+                X_horizon[:, k], self.state_space_parameters).flatten()
 
         Y_limit_penalty = self.calculate_Y_limit_penalty(Y_horizon)
 
         J = 0.0
         for k in range(self.Np):
             e_y_r = Y_horizon[:, k] - self.reference_trajectory[:, k]
-            J += X[:, k].T @ self.Qx @ X[:, k] + \
+            J += X_horizon[:, k].T @ self.Qx @ X_horizon[:, k] + \
                 e_y_r.T @ self.Qy @ e_y_r + U_horizon[:, k].T @ self.R @ U_horizon[:, k] + \
                 self.Y_min_max_rho * \
                 (Y_limit_penalty[:, k].T @ Y_limit_penalty[:, k])
 
         eN_y_r = Y_horizon[:, self.Np] - self.reference_trajectory[:, self.Np]
-        J += X[:, self.Np].T @ self.Px @ X[:, self.Np] + \
+        J += X_horizon[:, self.Np].T @ self.Px @ X_horizon[:, self.Np] + \
             eN_y_r.T @ self.Py @ eN_y_r + \
             self.Y_min_max_rho * \
             (Y_limit_penalty[:, self.Np].T @ Y_limit_penalty[:, self.Np])
 
         # terminal adjoint
         C_N = self.calculate_measurement_jacobian_x(
-            X[:, self.Np], self.state_space_parameters)
-        lam_next = (2.0 * self.Px) @ X[:, self.Np] + \
+            X_horizon[:, self.Np], self.state_space_parameters)
+        lam_next = (2.0 * self.Px) @ X_horizon[:, self.Np] + \
             C_N.T @ (2.0 * self.Py @ eN_y_r +
                      2.0 * self.Y_min_max_rho * Y_limit_penalty[:, self.Np])
 
         gradient = np.zeros_like(U_horizon)
         for k in reversed(range(self.Np)):
             Cx_k = self.calculate_measurement_jacobian_x(
-                X[:, k], self.state_space_parameters)
+                X_horizon[:, k], self.state_space_parameters)
             ek_y = Y_horizon[:, k] - self.reference_trajectory[:, k]
 
             A_k = self.calculate_state_jacobian_x(
-                X[:, k], U_horizon[:, k], self.state_space_parameters)
+                X_horizon[:, k], U_horizon[:, k], self.state_space_parameters)
             B_k = self.calculate_state_jacobian_u(
-                X[:, k], U_horizon[:, k], self.state_space_parameters)
+                X_horizon[:, k], U_horizon[:, k], self.state_space_parameters)
 
             gradient[:, k] = 2.0 * self.R @ U_horizon[:, k] + B_k.T @ lam_next
 
-            lam_next = 2.0 * self.Qx @ X[:, k] + 2.0 * \
+            lam_next = 2.0 * self.Qx @ X_horizon[:, k] + 2.0 * \
                 Cx_k.T @ (self.Qy @ ek_y +
                           2.0 * self.Y_min_max_rho * Y_limit_penalty[:, k]) + \
                 A_k.T @ lam_next
