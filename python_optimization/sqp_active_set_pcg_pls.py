@@ -75,7 +75,7 @@ class SQP_ActiveSet_PCG_PLS:
             number_of_rows=U_size[1]
         )
 
-        self.U: np.ndarray = None
+        self.U_horizon: np.ndarray = None
         self.X_initial: np.ndarray = None
         self.hvp_function: callable = None
 
@@ -155,7 +155,7 @@ class SQP_ActiveSet_PCG_PLS:
             r, z, self._active_set)
 
         for pcg_iteration in range(self._pcg_max_iteration):
-            Hp = self.hvp_function(self.X_initial, self.U, p)
+            Hp = self.hvp_function(self.X_initial, self.U_horizon, p)
             Hp += self._lambda_factor * p
 
             denominator = ActiveSet2D_MatrixOperator.vdot(
@@ -194,36 +194,57 @@ class SQP_ActiveSet_PCG_PLS:
         return d
 
     def free_mask(self,
-                  U: np.ndarray,
+                  U_horizon: np.ndarray,
                   gradient: np.ndarray,
                   U_min_matrix: np.ndarray,
                   U_max_matrix: np.ndarray,
                   atol: float = U_NEAR_LIMIT_DEFAULT,
                   gtol: float = GRADIENT_ZERO_LIMIT_DEFAULT):
         """
-        True = Free, False = Fixed.
-        At lower bound g>0 (going outside) -> Fixed.
-        At upper bound g<0 (going outside) -> Fixed.
+        Determines the mask of free variables in the optimization horizon
+          based on current values, gradients, and bounds.
+
+        This method identifies which variables are at their lower or upper bounds
+          within a specified tolerance (`atol`),
+        and then checks the gradient to decide if the variable should be considered
+          free or active. Variables at their bounds
+        with gradients indicating movement away from the bound are marked as not free.
+          The active set is updated accordingly.
+
+        Args:
+            U_horizon (np.ndarray): Current values of the optimization variables
+              over the horizon.
+            gradient (np.ndarray): Gradient of the objective function with respect to
+              the variables.
+            U_min_matrix (np.ndarray): Matrix of lower bounds for the variables.
+            U_max_matrix (np.ndarray): Matrix of upper bounds for the variables.
+            atol (float, optional): Absolute tolerance for determining if a variable
+              is at its bound. Defaults to U_NEAR_LIMIT_DEFAULT.
+            gtol (float, optional): Gradient tolerance for determining activity.
+              Defaults to GRADIENT_ZERO_LIMIT_DEFAULT.
+
+        Returns:
+            np.ndarray: Boolean mask indicating which variables are free
+              (True) and which are not (False).
         """
-
-        m = np.ones_like(U, dtype=bool)
+        m = np.ones_like(U_horizon, dtype=bool)
         self._active_set.clear()
-        at_lower = np.zeros_like(U, dtype=bool)
-        at_upper = np.zeros_like(U, dtype=bool)
+        at_lower = np.zeros_like(U_horizon, dtype=bool)
+        at_upper = np.zeros_like(U_horizon, dtype=bool)
 
-        for i in range(U.shape[0]):
-            for j in range(U.shape[1]):
+        for i in range(U_horizon.shape[0]):
+            for j in range(U_horizon.shape[1]):
 
-                if (U[i, j] >= (U_min_matrix[i, j] - atol)) and \
-                        (U[i, j] <= (U_min_matrix[i, j] + atol)):
+                if (U_horizon[i, j] >= (U_min_matrix[i, j] - atol)) and \
+                        (U_horizon[i, j] <= (U_min_matrix[i, j] + atol)):
                     at_lower[i, j] = True
 
-                if (U[i, j] >= (U_max_matrix[i, j] - atol)) and \
-                        (U[i, j] <= (U_max_matrix[i, j] + atol)):
+                if (U_horizon[i, j] >= (U_max_matrix[i, j] - atol)) and \
+                        (U_horizon[i, j] <= (U_max_matrix[i, j] + atol)):
                     at_upper[i, j] = True
 
-        for i in range(U.shape[0]):
-            for j in range(U.shape[1]):
+        for i in range(U_horizon.shape[0]):
+            for j in range(U_horizon.shape[1]):
                 if (at_lower[i, j] and (gradient[i, j] > gtol)) or \
                         (at_upper[i, j] and (gradient[i, j] < -gtol)):
                     m[i, j] = False
@@ -234,7 +255,7 @@ class SQP_ActiveSet_PCG_PLS:
 
     def solve(
         self,
-        U_initial: np.ndarray,
+        U_horizon_initial: np.ndarray,
         cost_and_gradient_function: callable,
         cost_function: callable,
         hvp_function: callable,
@@ -243,23 +264,23 @@ class SQP_ActiveSet_PCG_PLS:
         U_max_matrix: np.ndarray,
     ):
         self.X_initial = X_initial
-        U = U_initial.copy()
+        U_horizon = U_horizon_initial.copy()
 
         for solver_iteration in range(self._solver_max_iteration):
             # Calculate cost and gradient
-            J, gradient = cost_and_gradient_function(X_initial, U)
+            J, gradient = cost_and_gradient_function(X_initial, U_horizon)
 
             self._solver_step_iterated_number = solver_iteration + 1
             if np.linalg.norm(gradient) < self._gradient_norm_zero_limit:
                 break
 
             self._mask = self.free_mask(
-                U, gradient, U_min_matrix, U_max_matrix)
+                U_horizon, gradient, U_min_matrix, U_max_matrix)
 
             rhs = -gradient
             M_inv = 1.0 / (self._diag_R_full + self._lambda_factor)
 
-            self.U = U
+            self.U_horizon = U_horizon
             self.hvp_function = hvp_function
 
             d = self.preconditioned_conjugate_gradient(
@@ -270,11 +291,11 @@ class SQP_ActiveSet_PCG_PLS:
             # (No distinction between fixed/free is needed here,
             #  project the whole)
             alpha = 1.0
-            U_new = U.copy()
+            U_horizon_new = U_horizon.copy()
 
             U_updated_flag = False
             for line_search_iteration in range(self._line_search_max_iteration):
-                U_candidate = U + alpha * d
+                U_candidate = U_horizon + alpha * d
 
                 for i in range(U_candidate.shape[0]):
                     for j in range(U_candidate.shape[1]):
@@ -287,7 +308,7 @@ class SQP_ActiveSet_PCG_PLS:
 
                 self._line_search_step_iterated_number = line_search_iteration + 1
                 if J_candidate <= J or alpha < self._alpha_small_limit:
-                    U_new = U_candidate
+                    U_horizon_new = U_candidate
                     J = J_candidate
                     U_updated_flag = True
                     break
@@ -295,10 +316,10 @@ class SQP_ActiveSet_PCG_PLS:
                 alpha *= self._alpha_decay_rate
 
             if True == U_updated_flag:
-                U = U_new
+                U_horizon = U_horizon_new
             else:
                 break
 
         self.J_opt = J
 
-        return U
+        return U_horizon
