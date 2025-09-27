@@ -1283,10 +1283,10 @@ class SQP_CostMatrices_NMPC:
         Cx_N = self.calculate_measurement_jacobian_x(
             X_horizon[:, self.Np], self.state_space_parameters)
 
-        lam[:, self.Np] = 2.0 * self.Px @ X_horizon[:, self.Np] + \
-            (Cx_N.T @ ((2.0 * self.Py @ eN_y).flatten() + 2.0 *
-                       self.Y_min_max_rho * Y_limit_penalty[:, self.Np])
-             ).flatten()
+        lam[:, self.Np] = \
+            2.0 * (self.Px @ X_horizon[:, self.Np] +
+                   (Cx_N.T @ ((self.Py @ eN_y).flatten() + self.Y_min_max_rho * Y_limit_penalty[:, self.Np])
+                    ).flatten())
 
         for k in range(self.Np - 1, -1, -1):
             A_k = self.calculate_state_jacobian_x(
