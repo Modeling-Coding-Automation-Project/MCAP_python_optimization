@@ -132,7 +132,32 @@ class SQP_ActiveSet_PCG_PLS:
         rhs: np.ndarray,
         M_inv=None
     ):
+        """
+        Solves a linear system using the Preconditioned Conjugate Gradient (PCG) method.
 
+        This method iteratively solves for the search direction `d` in the context of
+        constrained optimization, using a preconditioner to accelerate convergence.
+
+        Args:
+            U_horizon (np.ndarray): The current control horizon or variable vector.
+            rhs (np.ndarray): The right-hand side vector
+              of the linear system to solve.
+            M_inv (np.ndarray, optional): The preconditioner matrix (inverse),
+              applied element-wise. If None, no preconditioning is used.
+
+        Returns:
+            np.ndarray: The computed search direction vector
+              `d` that approximately solves the system.
+
+        Notes:
+            - Uses an active set to restrict operations to relevant indices.
+            - Handles negative curvature and semi-definite cases
+              by early termination.
+            - Iteration stops when the residual norm is sufficiently small
+              or a maximum number of iterations is reached.
+            - Relies on several helper functions from ActiveSet2D_MatrixOperator
+              for vector operations.
+        """
         d = np.zeros_like(rhs)
 
         rhs_norm = ActiveSet2D_MatrixOperator.norm(rhs, self._active_set)
