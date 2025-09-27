@@ -75,7 +75,6 @@ class SQP_ActiveSet_PCG_PLS:
             number_of_rows=U_size[1]
         )
 
-        self.U_horizon: np.ndarray = None
         self.X_initial: np.ndarray = None
         self.hvp_function: callable = None
 
@@ -129,42 +128,11 @@ class SQP_ActiveSet_PCG_PLS:
     # functions
     def preconditioned_conjugate_gradient(
         self,
+        U_horizon: np.ndarray,
         rhs: np.ndarray,
         M_inv=None
     ):
-        """
-        Solves a linear system using the Preconditioned Conjugate Gradient
-          (PCG) method.
 
-        This method iteratively solves for the search direction `d`
-          in a quadratic optimization problem,
-        applying a preconditioner to accelerate convergence.
-          The PCG algorithm is terminated either when
-        the residual norm falls below a specified tolerance or when
-          a maximum number of iterations is reached.
-        Handles negative curvature and semi-definite cases by early termination.
-
-        Args:
-            rhs (np.ndarray): The right-hand side vector of the
-              linear system to solve.
-            M_inv (np.ndarray, optional): The preconditioner matrix
-              (inverse or approximation of the Hessian diagonal).
-                If None, no preconditioning is applied.
-
-        Returns:
-            np.ndarray: The computed search direction vector `d`
-              that approximately solves the system.
-
-        Notes:
-            - Uses methods from `ActiveSet2D_MatrixOperator`
-              for vector operations restricted to the active set.
-            - Relies on class attributes such as `_active_set`,
-              `_pcg_max_iteration`, `_lambda_factor`,
-                `_pcg_php_minus_limit`, and `_pcg_tol`.
-            - The Hessian-vector product is computed via `self.hvp_function`.
-            - Early termination occurs if negative curvature is detected
-              or the residual norm is sufficiently small.
-        """
         d = np.zeros_like(rhs)
 
         rhs_norm = ActiveSet2D_MatrixOperator.norm(rhs, self._active_set)
@@ -183,7 +151,7 @@ class SQP_ActiveSet_PCG_PLS:
             r, z, self._active_set)
 
         for pcg_iteration in range(self._pcg_max_iteration):
-            Hp = self.hvp_function(self.X_initial, self.U_horizon, p)
+            Hp = self.hvp_function(self.X_initial, U_horizon, p)
             Hp += self._lambda_factor * p
 
             denominator = ActiveSet2D_MatrixOperator.vdot(
@@ -313,26 +281,27 @@ class SQP_ActiveSet_PCG_PLS:
               the cost function subject to bounds.
         """
         self.X_initial = X_initial
-        U_horizon = U_horizon_initial.copy()
+        U_horizon_store = U_horizon_initial.copy()
 
         for solver_iteration in range(self._solver_max_iteration):
             # Calculate cost and gradient
-            J, gradient = cost_and_gradient_function(X_initial, U_horizon)
+            J, gradient = cost_and_gradient_function(
+                X_initial, U_horizon_store)
 
             self._solver_step_iterated_number = solver_iteration + 1
             if np.linalg.norm(gradient) < self._gradient_norm_zero_limit:
                 break
 
             self._mask = self.free_mask(
-                U_horizon, gradient, U_min_matrix, U_max_matrix)
+                U_horizon_store, gradient, U_min_matrix, U_max_matrix)
 
             rhs = -gradient
             M_inv = 1.0 / (self._diag_R_full + self._lambda_factor)
 
-            self.U_horizon = U_horizon
             self.hvp_function = hvp_function
 
             d = self.preconditioned_conjugate_gradient(
+                U_horizon=U_horizon_store,
                 rhs=rhs,
                 M_inv=M_inv)
 
@@ -340,11 +309,11 @@ class SQP_ActiveSet_PCG_PLS:
             # (No distinction between fixed/free is needed here,
             #  project the whole)
             alpha = 1.0
-            U_horizon_new = U_horizon.copy()
+            U_horizon_new = U_horizon_store.copy()
 
             U_updated_flag = False
             for line_search_iteration in range(self._line_search_max_iteration):
-                U_candidate = U_horizon + alpha * d
+                U_candidate = U_horizon_new + alpha * d
 
                 for i in range(U_candidate.shape[0]):
                     for j in range(U_candidate.shape[1]):
@@ -365,10 +334,10 @@ class SQP_ActiveSet_PCG_PLS:
                 alpha *= self._alpha_decay_rate
 
             if True == U_updated_flag:
-                U_horizon = U_horizon_new
+                U_horizon_store = U_horizon_new
             else:
                 break
 
         self.J_opt = J
 
-        return U_horizon
+        return U_horizon_store
