@@ -1233,8 +1233,8 @@ class SQP_CostMatrices_NMPC:
     def hvp_analytic(
             self,
             X_initial: np.ndarray,
-            U: np.ndarray,
-            V: np.ndarray
+            U_horizon: np.ndarray,
+            V_horizon: np.ndarray
     ):
         """
         Computes the Hessian-vector product (HVP) analytically
@@ -1246,8 +1246,8 @@ class SQP_CostMatrices_NMPC:
         obtain the HVP with respect to the control input direction V.
         Args:
             X_initial (np.ndarray): Initial state vector of shape (nx,).
-            U (np.ndarray): Control input trajectory of shape (nu, Np).
-            V (np.ndarray): Directional vector for control inputs of shape (nu, Np).
+            U_horizon (np.ndarray): Control input trajectory of shape (nu, Np).
+            V_horizon (np.ndarray): Directional vector for control inputs of shape (nu, Np).
         Returns:
             np.ndarray: Hessian-vector product with respect to
               control inputs, shape (nu, Np).
@@ -1260,7 +1260,8 @@ class SQP_CostMatrices_NMPC:
               such as SQP or Newton-type methods.
         """
         # --- 1) forward states
-        X = self.simulate_trajectory(X_initial, U, self.state_space_parameters)
+        X = self.simulate_trajectory(
+            X_initial, U_horizon, self.state_space_parameters)
         Y = np.zeros((self.ny, self.Np + 1))
         for k in range(self.Np + 1):
             Y[:, k] = self.calculate_measurement_function(
@@ -1285,7 +1286,7 @@ class SQP_CostMatrices_NMPC:
 
         for k in range(self.Np - 1, -1, -1):
             A_k = self.calculate_state_jacobian_x(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
             Cx_k = self.calculate_measurement_jacobian_x(
                 X[:, k], self.state_space_parameters)
             ek_y = Y[:, k] - self.reference_trajectory[:, k]
@@ -1299,10 +1300,10 @@ class SQP_CostMatrices_NMPC:
         dx = np.zeros((self.nx, self.Np + 1))
         for k in range(self.Np):
             A_k = self.calculate_state_jacobian_x(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
             B_k = self.calculate_state_jacobian_u(
-                X[:, k], U[:, k], self.state_space_parameters)
-            dx[:, k + 1] = A_k @ dx[:, k] + B_k @ V[:, k]
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
+            dx[:, k + 1] = A_k @ dx[:, k] + B_k @ V_horizon[:, k]
 
         # --- 4) backward second-order adjoint ---
         d_lambda = np.zeros((self.nx, self.Np + 1))
@@ -1329,12 +1330,12 @@ class SQP_CostMatrices_NMPC:
 
         d_lambda[:, self.Np] += CX_N_T_penalty_CX_N_dx.flatten()
 
-        Hu = np.zeros_like(U)
+        Hu = np.zeros_like(U_horizon)
         for k in range(self.Np - 1, -1, -1):
             A_k = self.calculate_state_jacobian_x(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
             B_k = self.calculate_state_jacobian_u(
-                X[:, k], U[:, k], self.state_space_parameters)
+                X[:, k], U_horizon[:, k], self.state_space_parameters)
             Cx_k = self.calculate_measurement_jacobian_x(
                 X[:, k], self.state_space_parameters)
             ek_y = Y[:, k] - self.reference_trajectory[:, k]
@@ -1354,13 +1355,13 @@ class SQP_CostMatrices_NMPC:
             )
 
             term_xx = self.fx_xx_lambda_contract(
-                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
+                X[:, k], U_horizon[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
             term_xu = self.fx_xu_lambda_contract(
-                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], V[:, k])
+                X[:, k], U_horizon[:, k], self.state_space_parameters, lam[:, k + 1], V_horizon[:, k])
 
             d_lambda[:, k] = \
-                (self.l_xx(X[:, k], U[:, k]) @ dx[:, k]).flatten() + \
-                (self.l_xu(X[:, k], U[:, k]) @ V[:, k]).flatten() + \
+                (self.l_xx(X[:, k], U_horizon[:, k]) @ dx[:, k]).flatten() + \
+                (self.l_xu(X[:, k], U_horizon[:, k]) @ V_horizon[:, k]).flatten() + \
                 (A_k.T @ d_lambda[:, k + 1]).flatten() + \
                 term_Qy_GN.flatten() + \
                 term_Qy_hxx.flatten() + \
@@ -1373,13 +1374,13 @@ class SQP_CostMatrices_NMPC:
             #   2R V + B^T dlambda_{k+1} + second-order terms from dynamics
             #   (Cu=0 -> no direct contribution from output terms)
             term_ux = self.fu_xx_lambda_contract(
-                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
+                X[:, k], U_horizon[:, k], self.state_space_parameters, lam[:, k + 1], dx[:, k])
             term_uu = self.fu_uu_lambda_contract(
-                X[:, k], U[:, k], self.state_space_parameters, lam[:, k + 1], V[:, k])
+                X[:, k], U_horizon[:, k], self.state_space_parameters, lam[:, k + 1], V_horizon[:, k])
 
             Hu[:, k] = \
-                (self.l_uu(X[:, k], U[:, k]) @ V[:, k]).flatten() + \
-                (self.l_ux(X[:, k], U[:, k]) @ dx[:, k]).flatten() + \
+                (self.l_uu(X[:, k], U_horizon[:, k]) @ V_horizon[:, k]).flatten() + \
+                (self.l_ux(X[:, k], U_horizon[:, k]) @ dx[:, k]).flatten() + \
                 (B_k.T @ d_lambda[:, k + 1]).flatten() + \
                 term_ux.flatten() + term_uu.flatten()
 
