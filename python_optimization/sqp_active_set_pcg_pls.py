@@ -32,6 +32,7 @@ ALPHA_DECAY_RATE_DEFAULT = 0.5
 SOLVER_MAX_ITERATION_DEFAULT = 100
 
 LAMBDA_FACTOR_DEFAULT = 1e-6
+STEP_NORM_ZERO_LIMIT_DEFAULT = 1e-12
 
 
 class SQP_ActiveSet_PCG_PLS:
@@ -330,6 +331,9 @@ class SQP_ActiveSet_PCG_PLS:
                 rhs=rhs,
                 M_inv=M_inv)
 
+            if ActiveSet2D_MatrixOperator.norm(d, self._active_set) <= STEP_NORM_ZERO_LIMIT_DEFAULT:
+                break
+
             # line search and projection
             # (No distinction between fixed/free is needed here,
             #  project the whole)
@@ -350,7 +354,7 @@ class SQP_ActiveSet_PCG_PLS:
                 J_candidate = cost_function(X_initial, U_candidate)
 
                 self._line_search_step_iterated_number = line_search_iteration + 1
-                if J_candidate <= J or alpha < self._alpha_small_limit:
+                if (J_candidate < J) or (alpha < self._alpha_small_limit):
                     U_horizon_new = U_candidate
                     J = J_candidate
                     U_updated_flag = True
