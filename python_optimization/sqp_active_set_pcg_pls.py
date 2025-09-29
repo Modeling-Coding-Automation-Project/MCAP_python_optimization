@@ -54,6 +54,7 @@ class SQP_ActiveSet_PCG_PLS:
             line_search_max_iteration: int = LINE_SEARCH_MAX_ITERATION_DEFAULT,
             pcg_tol: float = PCG_TOL_DEFAULT,
             lambda_factor: float = LAMBDA_FACTOR_DEFAULT,
+            step_norm_zero_limit: float = STEP_NORM_ZERO_LIMIT_DEFAULT,
     ):
 
         self._gradient_norm_zero_limit = gradient_norm_zero_limit
@@ -67,6 +68,7 @@ class SQP_ActiveSet_PCG_PLS:
 
         self._pcg_tol = pcg_tol
         self._lambda_factor = lambda_factor
+        self._step_norm_zero_limit = step_norm_zero_limit
 
         self._diag_R_full = np.ones((U_size))
 
@@ -112,6 +114,9 @@ class SQP_ActiveSet_PCG_PLS:
 
     def set_lambda_factor(self, factor: float):
         self._lambda_factor = factor
+
+    def set_step_norm_zero_limit(self, limit: float):
+        self._step_norm_zero_limit = limit
 
     def set_diag_R_full(self, diag_R_full: np.ndarray):
         self._diag_R_full = diag_R_full
@@ -331,7 +336,7 @@ class SQP_ActiveSet_PCG_PLS:
                 rhs=rhs,
                 M_inv=M_inv)
 
-            if ActiveSet2D_MatrixOperator.norm(d, self._active_set) <= STEP_NORM_ZERO_LIMIT_DEFAULT:
+            if ActiveSet2D_MatrixOperator.norm(d, self._active_set) <= self._step_norm_zero_limit:
                 break
 
             # line search and projection
