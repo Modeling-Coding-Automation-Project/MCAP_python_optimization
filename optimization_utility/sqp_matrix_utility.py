@@ -458,9 +458,11 @@ class SQP_CostMatrices_NMPC:
             # d^2 fi / (dx du) -> rows: x, cols: u
             if nu > 0:
                 Hxu = sp.Matrix([[sp.diff(sp.diff(fi, self.x_syms[j]), self.u_syms[k])
-                                for k in range(nu)] for j in range(nx)])   # (nx, nu)
+                                # (nx, nu)
+                                  for k in range(nu)] for j in range(nx)])
                 Hux = sp.Matrix([[sp.diff(sp.diff(fi, self.u_syms[k]), self.x_syms[j])
-                                for j in range(nx)] for k in range(nu)])   # (nu, nx)
+                                # (nu, nx)
+                                  for j in range(nx)] for k in range(nu)])
             else:
                 Hxu = sp.Matrix(np.zeros((nx, 0)))
                 Hux = sp.Matrix(np.zeros((0, nx)))
@@ -804,7 +806,7 @@ class SQP_CostMatrices_NMPC:
                 acc = 0.0
                 for k in range(self.nx):
                     acc += Hf_xx[i * self.nx + j, k] * dX[k, 0]
-                out[j, 0] += lam_next[i] * acc
+                out[j, 0] += lam_next[i, 0] * acc
 
         return out
 
@@ -851,7 +853,7 @@ class SQP_CostMatrices_NMPC:
                     acc = 0.0
                     for k in range(self.nu):
                         acc += Hf_xu[i * self.nx + j, k] * dU[k, 0]
-                    out[j, 0] += lam_next[i] * acc
+                    out[j, 0] += lam_next[i, 0] * acc
 
         return out
 
@@ -902,7 +904,7 @@ class SQP_CostMatrices_NMPC:
                     acc = 0.0
                     for j in range(self.nx):
                         acc += Hf_ux[i * self.nu + k, j] * dX[j, 0]
-                    out[k, 0] += lam_next[i] * acc
+                    out[k, 0] += lam_next[i, 0] * acc
 
         return out
 
@@ -952,7 +954,7 @@ class SQP_CostMatrices_NMPC:
                     acc = 0.0
                     for k in range(self.nu):
                         acc += Hf_uu[i * self.nu + j, k] * dU[k, 0]
-                    out[j, 0] += lam_next[i] * acc
+                    out[j, 0] += lam_next[i, 0] * acc
 
         return out
 
@@ -992,7 +994,7 @@ class SQP_CostMatrices_NMPC:
                 acc = 0.0
                 for k in range(self.nx):
                     acc += Hh_xx[i * self.nx + j, k] * dX[k, 0]
-                out[j, 0] += w[i] * acc
+                out[j, 0] += w[i, 0] * acc
 
         return out
 
