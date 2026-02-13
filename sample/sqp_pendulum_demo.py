@@ -7,9 +7,13 @@ Preconditioned Conjugate Gradient (PCG), and Projected Line Search (PLS).
 
 Plant: Pendulum-like system with nonlinear actuator dynamics
 """
+from __future__ import annotations
+
 import os
 import sys
-sys.path.append(os.getcwd())
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import sympy as sp

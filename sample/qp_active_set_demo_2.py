@@ -2,9 +2,13 @@
 This script demonstrates how to solve a quadratic programming (QP) problem using the QP_ActiveSetSolver class from the python_optimization.qp_active_set module.
 It sets up a QP problem with a quadratic cost matrix, a linear term, constraint matrix, and constraint bounds, then solves for the optimal variable vector.
 """
+from __future__ import annotations
+
 import os
 import sys
-sys.path.append(os.getcwd())
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 
