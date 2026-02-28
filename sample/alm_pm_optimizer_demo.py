@@ -129,7 +129,8 @@ print(f"Initial cost    : f(u) = {cost(u0):.6f}")
 print(f"Initial F1(u)   : {F1(u0)[0, 0]:.6f}  (constraint: <= 1.0)")
 print()
 
-status = optimizer.solve(u0)
+optimizer.solve(u0)
+status = optimizer.solver_status
 # u0 is modified in-place and now holds the solution
 
 # ============================================================
