@@ -235,7 +235,7 @@ class L_BFGS_Buffer:
 
         self._rho[index] = 1.0 / ys
 
-        if self.cbfgs_epsilon > 0.0:
+        if self.cbfgs_epsilon > 0.0 and self.cbfgs_alpha > 0:
             lhs = ys / norm_s_sq
             rhs = self.cbfgs_epsilon * (np.linalg.norm(g) ** self.cbfgs_alpha)
             if lhs <= rhs:
@@ -481,6 +481,8 @@ class PANOC_Optimizer:
             norm_fixed_point_residual=c.norm_gamma_fpr,
             cost_value=c.cost_value,
         )
+
+        return self.solver_status
 
     def _project(self, x: np.ndarray) -> None:
         """
