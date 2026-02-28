@@ -71,6 +71,73 @@ CBFGS_ALPHA_DEFAULT: int = 1  # must be 0 or 1 or 2
 NORM_S_SMALL_LIMIT = 1e-30
 
 
+class VectorRingBuffer:
+    """
+    Circular buffer that stores fixed-size vectors (or scalars) with O(1) push.
+
+    Newest data is accessed via ``get(0)``, one-before-newest via ``get(1)``, etc.
+    No data copying occurs on push — only an internal index is advanced.
+
+    Parameters
+    ----------
+    buffer_size : int
+        Maximum number of entries the buffer can hold.
+    element_size : int, optional
+        Size of each vector element.  If 0 (default), each element is a scalar.
+    """
+
+    def __init__(self, buffer_size: int, element_size: int = 0):
+        assert buffer_size > 0
+        self._buffer_size = buffer_size
+        if element_size > 0:
+            self._data = np.zeros((buffer_size, element_size))
+        else:
+            self._data = np.zeros(buffer_size)
+        self._head: int = 0
+
+        self.active_size: int = 0  # number of valid entries (<= buffer_size)
+
+    def reset(self) -> None:
+        """Reset the buffer (O(1) — only resets counters)."""
+        self._head = 0
+        self.active_size = 0
+
+    def push(self, value) -> None:
+        """
+        Push a new value, overwriting the oldest entry if the buffer is full.
+        """
+        self._data[self._head] = value
+
+        self._head += 1
+        if self._head >= self._buffer_size:
+            self._head = 0
+        if self.active_size < self._buffer_size:
+            self.active_size += 1
+
+    def get(self, index_from_latest: int) -> np.ndarray:
+        """
+        Get the *i*-th most recent element.
+
+        Parameters
+        ----------
+        index_from_latest : int
+            0 = most recent, 1 = one before newest, 2 = two before, …
+
+        Returns
+        -------
+        np.ndarray
+            A view into the stored vector (or a scalar).
+        """
+        if index_from_latest < 0 or index_from_latest >= self.active_size:
+            raise IndexError("Index out of bounds for VectorRingBuffer")
+
+        index = self._head - 1 - index_from_latest
+        if index < 0:
+            index += self._buffer_size
+
+        return self._data[index]
+
+
 class ExitStatus(Enum):
     """
     Exit status of the PANOC solver.
@@ -148,25 +215,26 @@ class L_BFGS_Buffer:
 
         self.cbfgs_epsilon = cbfgs_epsilon
 
-        # Storage: buffer_size+1 entries (last is temporary workspace)
-        self._s = np.zeros((buffer_size + 1, problem_size))
-        self._y = np.zeros((buffer_size + 1, problem_size))
-        self._rho = np.zeros(buffer_size + 1)
+        # Storage using ring buffers (no data copying on push)
+        self._s = VectorRingBuffer(buffer_size, problem_size)
+        self._y = VectorRingBuffer(buffer_size, problem_size)
+        self._rho = VectorRingBuffer(buffer_size)
 
         # workspace for two-loop recursion
         self._alpha_buf = np.zeros(buffer_size)
 
         self._gamma: float = 1.0  # initial Hessian scaling H0 = gamma * I
-        self._active_size: int = 0
         self._old_state = np.zeros(problem_size)
         self._old_g = np.zeros(problem_size)
         self._first_old: bool = True
 
     def reset(self) -> None:
         """
-        Clear the buffer (cheap - just resets flags).
+        Clear the buffer (cheap - just resets flags/counters).
         """
-        self._active_size = 0
+        self._s.reset()
+        self._y.reset()
+        self._rho.reset()
         self._first_old = True
 
     # ------------------------------------------------------------------
@@ -192,55 +260,58 @@ class L_BFGS_Buffer:
             self._old_g[:] = g
             return True
 
-        # Compute s = state - old_state, y = g - old_g in the temporary slot
-        self._s[self._m] = state - self._old_state
-        self._y[self._m] = g - self._old_g
+        # Compute s and y as temporary arrays
+        s_new = state - self._old_state
+        y_new = g - self._old_g
 
-        if not self._new_s_and_y_valid(g, self._m):
+        # Validate and compute rho
+        rho_new = self._compute_rho_if_valid(g, s_new, y_new)
+        if rho_new is None:
             return False
 
         # Save current as "old"
         self._old_state[:] = state
         self._old_g[:] = g
 
-        # Rotate: move temporary slot to front
-        # shift all rows right by 1, temporary row becomes row 0
-        self._s = np.roll(self._s, 1, axis=0)
-        self._y = np.roll(self._y, 1, axis=0)
-        self._rho = np.roll(self._rho, 1)
+        # Push new pair into ring buffers (overwrites oldest entry, O(1))
+        self._s.push(s_new)
+        self._y.push(y_new)
+        self._rho.push(rho_new)
 
         # Update H0 scaling: gamma = (s^T y) / (y^T y)
-        ys = np.dot(self._s[0], self._y[0])
-        yy = np.dot(self._y[0], self._y[0])
+        ys = np.dot(self._s.get(0), self._y.get(0))
+        yy = np.dot(self._y.get(0), self._y.get(0))
         if yy > 0.0:
             self._gamma = ys / yy
 
-        self._active_size = min(self._m, self._active_size + 1)
         return True
 
-    def _new_s_and_y_valid(self, g: np.ndarray, index: int) -> bool:
+    def _compute_rho_if_valid(
+        self, g: np.ndarray, s: np.ndarray, y: np.ndarray
+    ) -> Optional[float]:
         """
-        Check C-BFGS and curvature conditions for the (s, y) pair at *index*.
+        Check C-BFGS and curvature conditions for the (s, y) pair.
+
+        Returns
+        -------
+        float or None
+            ``1 / (s^T y)`` if the pair is accepted, ``None`` if rejected.
         """
-        s = self._s[index]
-        y = self._y[index]
         ys = float(np.dot(s, y))
         norm_s_sq = float(np.dot(s, s))
 
         if norm_s_sq <= NORM_S_SMALL_LIMIT:
-            return False
+            return None
         if self.sy_epsilon > 0.0 and ys <= self.sy_epsilon:
-            return False
-
-        self._rho[index] = 1.0 / ys
+            return None
 
         if self.cbfgs_epsilon > 0.0 and self.cbfgs_alpha > 0:
             lhs = ys / norm_s_sq
             rhs = self.cbfgs_epsilon * (np.linalg.norm(g) ** self.cbfgs_alpha)
             if lhs <= rhs:
-                return False
+                return None
 
-        return True
+        return 1.0 / ys
 
     def apply_hessian(self, q: np.ndarray) -> None:
         """
@@ -249,25 +320,24 @@ class L_BFGS_Buffer:
         On entry *q* is the gradient (or FPR); on exit it contains H * q.
         Uses the standard two-loop recursion.
         """
-        if self._active_size == 0:
+        if self._s.active_size == 0:
             return  # no curvature info yet - return q unchanged
 
-        k = self._active_size
         alpha = self._alpha_buf
 
         # --- forward pass ---
-        for i in range(k):
-            alpha[i] = self._rho[i] * np.dot(self._s[i], q)
-            q -= alpha[i] * self._y[i]  # q = q - alpha_i * y_i
+        for i in range(self._s.active_size):
+            alpha[i] = self._rho.get(i) * np.dot(self._s.get(i), q)
+            q -= alpha[i] * self._y.get(i)  # q = q - alpha_i * y_i
 
         # Apply H0 = gamma * I
         q *= self._gamma
 
         # --- backward pass ---
-        for i in range(k - 1, -1, -1):
-            beta = self._rho[i] * np.dot(self._y[i], q)
+        for i in range(self._s.active_size - 1, -1, -1):
+            beta = self._rho.get(i) * np.dot(self._y.get(i), q)
             # q = q + (alpha_i - beta) * s_i
-            q += (alpha[i] - beta) * self._s[i]
+            q += (alpha[i] - beta) * self._s.get(i)
 
 
 class PANOC_Cache:
