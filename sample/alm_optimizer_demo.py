@@ -76,7 +76,7 @@ u_min = np.array([-1.5, -1.5])
 u_max = np.array([1.5, 1.5])
 
 # Set Y for Lagrange multipliers: ball of large radius (practically unbounded)
-project_Y = BallProjectionOperator(center=None, radius=1e6)
+project_Y_operator = BallProjectionOperator(center=None, radius=1e6)
 
 # ============================================================
 # 2. Build factory, problem, cache, optimizer
@@ -99,7 +99,7 @@ problem = ALM_Problem(
     u_max=u_max,
     mapping_f1=F1,
     set_c_project=project_C,
-    set_y_project=project_Y,
+    set_y_project=project_Y_operator.project,
     n1=1,
 )
 

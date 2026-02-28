@@ -116,10 +116,6 @@ class BoxProjectionOperator:
         if self.upper is not None:
             np.minimum(x, self.upper, out=x)
 
-    def __call__(self, x: np.ndarray) -> None:
-        """Callable interface — delegates to :meth:`project`."""
-        self.project(x)
-
 
 class BallProjectionOperator:
     """
@@ -156,10 +152,6 @@ class BallProjectionOperator:
                 x[:] = self.center + (self.radius / norm_d) * d
             else:
                 x[:] = (self.radius / norm_d) * d
-
-    def __call__(self, x: np.ndarray) -> None:
-        """Callable interface — delegates to :meth:`project`."""
-        self.project(x)
 
 
 @dataclass
