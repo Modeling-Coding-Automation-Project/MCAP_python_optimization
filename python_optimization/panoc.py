@@ -68,6 +68,8 @@ SY_EPSILON_DEFAULT: float = 1e-10
 CBFGS_EPSILON_DEFAULT: float = 1e-8
 CBFGS_ALPHA_DEFAULT: float = 1.0
 
+NORM_S_SMALL_LIMIT = 1e-30
+
 
 class ExitStatus(Enum):
     """
@@ -191,12 +193,11 @@ class L_BFGS_Buffer:
             return True
 
         # Compute s = state - old_state, y = g - old_g in the temporary slot
-        tmp = self._m  # index of the temporary slot
-        np.subtract(state, self._old_state, out=self._s[tmp])
-        np.subtract(g, self._old_g, out=self._y[tmp])
+        slot_index = self._m  # index of the temporary slot
+        self._s[slot_index] = state - self._old_state
+        self._y[slot_index] = g - self._old_g
 
-        # Validity check
-        if not self._new_s_and_y_valid(g, tmp):
+        if not self._new_s_and_y_valid(g, slot_index):
             return False
 
         # Save current as "old"
@@ -219,19 +220,21 @@ class L_BFGS_Buffer:
         return True
 
     # ------------------------------------------------------------------
-    def _new_s_and_y_valid(self, g: np.ndarray, idx: int) -> bool:
-        """Check C-BFGS and curvature conditions for the (s, y) pair at *idx*."""
-        s = self._s[idx]
-        y = self._y[idx]
+    def _new_s_and_y_valid(self, g: np.ndarray, index: int) -> bool:
+        """
+        Check C-BFGS and curvature conditions for the (s, y) pair at *index*.
+        """
+        s = self._s[index]
+        y = self._y[index]
         ys = float(np.dot(s, y))
         norm_s_sq = float(np.dot(s, s))
 
-        if norm_s_sq <= np.finfo(float).tiny:
+        if norm_s_sq <= NORM_S_SMALL_LIMIT:
             return False
         if self.sy_epsilon > 0.0 and ys <= self.sy_epsilon:
             return False
 
-        self._rho[idx] = 1.0 / ys
+        self._rho[index] = 1.0 / ys
 
         if self.cbfgs_epsilon > 0.0 and self.cbfgs_alpha > 0.0:
             lhs = ys / norm_s_sq
