@@ -91,8 +91,9 @@ class VectorRingBuffer:
     def __init__(self, buffer_size: int, element_size: int = 0):
         assert buffer_size > 0
         self._buffer_size = buffer_size
+        self._element_size = element_size
         if element_size > 0:
-            self._data = np.zeros((buffer_size, element_size))
+            self._data = np.zeros((element_size, buffer_size))
         else:
             self._data = np.zeros(buffer_size)
         self._head: int = 0
@@ -108,7 +109,10 @@ class VectorRingBuffer:
         """
         Push a new value, overwriting the oldest entry if the buffer is full.
         """
-        self._data[self._head] = value
+        if self._element_size > 0:
+            self._data[:, self._head:self._head + 1] = value
+        else:
+            self._data[self._head] = value
 
         self._head += 1
         if self._head >= self._buffer_size:
@@ -137,7 +141,10 @@ class VectorRingBuffer:
         if index < 0:
             index += self._buffer_size
 
-        return self._data[index]
+        if self._element_size > 0:
+            return self._data[:, index:index + 1]
+        else:
+            return self._data[index]
 
     def get_active_size(self) -> int:
         """
@@ -232,8 +239,8 @@ class L_BFGS_Buffer:
         self._alpha_buf = np.zeros(buffer_size)
 
         self._gamma: float = 1.0  # initial Hessian scaling H0 = gamma * I
-        self._old_state = np.zeros(problem_size)
-        self._old_g = np.zeros(problem_size)
+        self._old_state = np.zeros((problem_size, 1))
+        self._old_g = np.zeros((problem_size, 1))
         self._first_old: bool = True
 
     def reset(self) -> None:
@@ -287,8 +294,8 @@ class L_BFGS_Buffer:
         self._rho.push(rho_new)
 
         # Update H0 scaling: gamma = (s^T y) / (y^T y)
-        ys = np.dot(self._s.get(0), self._y.get(0))
-        yy = np.dot(self._y.get(0), self._y.get(0))
+        ys = (self._s.get(0).T @ self._y.get(0)).item()
+        yy = (self._y.get(0).T @ self._y.get(0)).item()
         if yy > 0.0:
             self._gamma = ys / yy
 
@@ -305,8 +312,8 @@ class L_BFGS_Buffer:
         float or None
             ``1 / (s^T y)`` if the pair is accepted, ``None`` if rejected.
         """
-        ys = float(np.dot(s, y))
-        norm_s_sq = float(np.dot(s, s))
+        ys = (s.T @ y).item()
+        norm_s_sq = (s.T @ s).item()
 
         if norm_s_sq <= NORM_S_SMALL_LIMIT:
             return None
@@ -335,7 +342,7 @@ class L_BFGS_Buffer:
 
         # --- forward pass ---
         for i in range(self._s.get_active_size()):
-            alpha[i] = self._rho.get(i) * np.dot(self._s.get(i), q)
+            alpha[i] = self._rho.get(i) * (self._s.get(i).T @ q).item()
             q -= alpha[i] * self._y.get(i)  # q = q - alpha_i * y_i
 
         # Apply H0 = gamma * I
@@ -343,7 +350,7 @@ class L_BFGS_Buffer:
 
         # --- backward pass ---
         for i in range(self._s.get_active_size() - 1, -1, -1):
-            beta = self._rho.get(i) * np.dot(self._y.get(i), q)
+            beta = self._rho.get(i) * (self._y.get(i).T @ q).item()
             # q = q + (alpha_i - beta) * s_i
             q += (alpha[i] - beta) * self._s.get(i)
 
@@ -384,12 +391,12 @@ class PANOC_Cache:
         )
 
         # Working arrays
-        self.gradient_u = np.zeros(n)
-        self.u_half_step = np.zeros(n)
-        self.gradient_step = np.zeros(n)
-        self.direction_lbfgs = np.zeros(n)
-        self.u_plus = np.zeros(n)
-        self.gamma_fpr = np.zeros(n)
+        self.gradient_u = np.zeros((n, 1))
+        self.u_half_step = np.zeros((n, 1))
+        self.gradient_step = np.zeros((n, 1))
+        self.direction_lbfgs = np.zeros((n, 1))
+        self.u_plus = np.zeros((n, 1))
+        self.gamma_fpr = np.zeros((n, 1))
 
         # Scalars
         self.gamma: float = 0.0
@@ -639,7 +646,7 @@ class PANOC_Optimizer:
         rhs = f(u) + eps*|f(u)| - <grad, gamma_fpr> +
           (L_coeff / (2*gamma)) * ||gamma_fpr||^2
         """
-        inner = float(np.dot(self._cache.gradient_u, self._cache.gamma_fpr))
+        inner = (self._cache.gradient_u.T @ self._cache.gamma_fpr).item()
         return (self._cache.cost_value
                 + LIPSCHITZ_UPDATE_EPSILON_DEFAULT *
                 abs(self._cache.cost_value)
@@ -686,8 +693,8 @@ class PANOC_Optimizer:
         """
         dist_sq = float(
             np.sum((self._cache.gradient_step - self._cache.u_half_step) ** 2))
-        grad_norm_sq = float(
-            np.dot(self._cache.gradient_u, self._cache.gradient_u))
+        grad_norm_sq = (
+            self._cache.gradient_u.T @ self._cache.gradient_u).item()
         fbe = self._cache.cost_value - 0.5 * self._cache.gamma * \
             grad_norm_sq + 0.5 * dist_sq / self._cache.gamma
         self._cache.rhs_ls = fbe - self._cache.sigma * self._cache.norm_gamma_fpr ** 2
@@ -715,8 +722,8 @@ class PANOC_Optimizer:
         # LHS of line-search condition (FBE at u_plus)
         dist_sq = float(
             np.sum((self._cache.gradient_step - self._cache.u_half_step) ** 2))
-        grad_norm_sq = float(
-            np.dot(self._cache.gradient_u, self._cache.gradient_u))
+        grad_norm_sq = (
+            self._cache.gradient_u.T @ self._cache.gradient_u).item()
         self._cache.lhs_ls = self._cache.cost_value - 0.5 * self._cache.gamma * \
             grad_norm_sq + 0.5 * dist_sq / self._cache.gamma
 

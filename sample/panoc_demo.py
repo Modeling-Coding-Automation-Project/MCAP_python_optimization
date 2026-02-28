@@ -34,20 +34,21 @@ b = 100.0
 
 def cost(u: np.ndarray) -> float:
     """Rosenbrock cost function."""
-    return (a - u[0]) ** 2 + b * (u[1] - u[0] ** 2) ** 2
+    return (a - u[0, 0]) ** 2 + b * (u[1, 0] - u[0, 0] ** 2) ** 2
 
 
 def gradient(u: np.ndarray) -> np.ndarray:
     """Gradient of the Rosenbrock cost function."""
-    g = np.zeros(2)
-    g[0] = -2.0 * (a - u[0]) - 4.0 * b * u[0] * (u[1] - u[0] ** 2)
-    g[1] = 2.0 * b * (u[1] - u[0] ** 2)
+    g = np.zeros((2, 1))
+    g[0, 0] = -2.0 * (a - u[0, 0]) - 4.0 * b * \
+        u[0, 0] * (u[1, 0] - u[0, 0] ** 2)
+    g[1, 0] = 2.0 * b * (u[1, 0] - u[0, 0] ** 2)
     return g
 
 
 # Box constraints
-u_min = np.array([-1.5, -0.5])
-u_max = np.array([1.5, 2.5])
+u_min = np.array([[-1.5], [-0.5]])
+u_max = np.array([[1.5], [2.5]])
 
 # ============================================================
 # 2. Create cache and solver
@@ -67,8 +68,8 @@ solver = PANOC_Optimizer(
 # ============================================================
 # 3. Solve
 # ============================================================
-u0 = np.array([-1.0, 2.0])  # initial guess
-print(f"Initial guess : u = {u0}")
+u0 = np.array([[-1.0], [2.0]])  # initial guess
+print(f"Initial guess : u = {u0.flatten()}")
 print(f"Initial cost  : f(u) = {cost(u0):.6f}")
 print()
 
@@ -81,7 +82,7 @@ status = solver.solve(u0)
 print("--- PANOC result ---")
 print(f"Exit status   : {status.exit_status.name}")
 print(f"Iterations    : {status.number_of_iteration}")
-print(f"Solution      : u = {u0}")
+print(f"Solution      : u = {u0.flatten()}")
 print(f"Cost at sol.  : f(u) = {status.cost_value:.10f}")
 print(f"||gamma*FPR|| : {status.norm_fixed_point_residual:.2e}")
 print(f"Converged     : {status.has_converged()}")
@@ -92,4 +93,4 @@ assert np.all(u0 >= u_min - 1e-12) and np.all(u0 <= u_max + 1e-12), \
     "Solution violates box constraints!"
 print("Feasibility check: OK")
 print(
-    f"Distance to true optimum (1, 1): {np.linalg.norm(u0 - np.array([1.0, 1.0])):.2e}")
+    f"Distance to true optimum (1, 1): {np.linalg.norm(u0 - np.array([[1.0], [1.0]])):.2e}")
