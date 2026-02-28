@@ -596,79 +596,80 @@ class PANOC_Optimizer:
         self._cache.sigma = (
             1.0 - GAMMA_L_COEFFICIENT_DEFAULT) / (4.0 * self._cache.gamma)
 
-    # ------------------------------------------------------------------
-    #  u_plus computation
-    # ------------------------------------------------------------------
     def _compute_u_plus(self, u: np.ndarray) -> None:
-        """u_plus = u - (1 - tau)*gamma_fpr - tau * direction_lbfgs."""
-        c = self._cache
-        temp = 1.0 - c.tau
-        c.u_plus[:] = u - temp * c.gamma_fpr - c.tau * c.direction_lbfgs
+        """
+        u_plus = u - (1 - tau)*gamma_fpr - tau * direction_lbfgs.
+        """
+        temp = 1.0 - self._cache.tau
+        self._cache.u_plus[:] = u - temp * self._cache.gamma_fpr - \
+            self._cache.tau * self._cache.direction_lbfgs
 
-    # ------------------------------------------------------------------
-    #  Forward-Backward Envelope helpers
-    # ------------------------------------------------------------------
     def _compute_rhs_ls(self) -> None:
-        """Compute the RHS of the line-search condition (FBE - sigma * ||fpr||^2)."""
-        c = self._cache
-        dist_sq = float(np.sum((c.gradient_step - c.u_half_step) ** 2))
-        grad_norm_sq = float(np.dot(c.gradient_u, c.gradient_u))
-        fbe = c.cost_value - 0.5 * c.gamma * grad_norm_sq + 0.5 * dist_sq / c.gamma
-        c.rhs_ls = fbe - c.sigma * c.norm_gamma_fpr ** 2
+        """
+        Compute the RHS of the line-search condition (FBE - sigma * ||fpr||^2).
+        """
+        dist_sq = float(
+            np.sum((self._cache.gradient_step - self._cache.u_half_step) ** 2))
+        grad_norm_sq = float(
+            np.dot(self._cache.gradient_u, self._cache.gradient_u))
+        fbe = self._cache.cost_value - 0.5 * self._cache.gamma * \
+            grad_norm_sq + 0.5 * dist_sq / self._cache.gamma
+        self._cache.rhs_ls = fbe - self._cache.sigma * self._cache.norm_gamma_fpr ** 2
 
     def _line_search_condition(self, u: np.ndarray) -> bool:
-        """Evaluate the line-search condition.
+        """
+        Evaluate the line-search condition.
 
         Returns True if lhs > rhs (line search should continue).
         Side effects: updates u_plus, cost_value, gradient_u,
         gradient_step, u_half_step, lhs_ls.
         """
-        c = self._cache
 
         # Candidate next iterate
         self._compute_u_plus(u)
 
         # Evaluate cost and gradient at u_plus
-        c.cost_value = self._cost_func(c.u_plus)
-        c.gradient_u[:] = self._gradient_func(c.u_plus)
+        self._cache.cost_value = self._cost_func(self._cache.u_plus)
+        self._cache.gradient_u[:] = self._gradient_func(self._cache.u_plus)
 
         # Gradient step and half step at u_plus
         self._gradient_step_uplus()
         self._half_step()
 
         # LHS of line-search condition (FBE at u_plus)
-        dist_sq = float(np.sum((c.gradient_step - c.u_half_step) ** 2))
-        grad_norm_sq = float(np.dot(c.gradient_u, c.gradient_u))
-        c.lhs_ls = c.cost_value - 0.5 * c.gamma * \
-            grad_norm_sq + 0.5 * dist_sq / c.gamma
+        dist_sq = float(
+            np.sum((self._cache.gradient_step - self._cache.u_half_step) ** 2))
+        grad_norm_sq = float(
+            np.dot(self._cache.gradient_u, self._cache.gradient_u))
+        self._cache.lhs_ls = self._cache.cost_value - 0.5 * self._cache.gamma * \
+            grad_norm_sq + 0.5 * dist_sq / self._cache.gamma
 
-        return c.lhs_ls > c.rhs_ls
+        return self._cache.lhs_ls > self._cache.rhs_ls
 
-    # ------------------------------------------------------------------
-    #  Line search / no-line-search update
-    # ------------------------------------------------------------------
     def _update_no_linesearch(self, u: np.ndarray) -> None:
-        """First-iteration update (no line search): u <- u_half_step."""
-        c = self._cache
-        u[:] = c.u_half_step
-        c.cost_value = self._cost_func(u)
-        c.gradient_u[:] = self._gradient_func(u)
+        """
+        First-iteration update (no line search): u <- u_half_step.
+        """
+        u[:] = self._cache.u_half_step
+        self._cache.cost_value = self._cost_func(u)
+        self._cache.gradient_u[:] = self._gradient_func(u)
         self._gradient_step(u)
         self._half_step()
 
     def _linesearch(self, u: np.ndarray) -> None:
-        """Perform a line search on tau to select the next iterate."""
-        c = self._cache
+        """
+        Perform a line search on tau to select the next iterate.
+        """
         self._compute_rhs_ls()
-        c.tau = 1.0
+        self._cache.tau = 1.0
         num_ls = 0
         while self._line_search_condition(u) and num_ls < MAX_LINESEARCH_ITERATIONS_DEFAULT:
-            c.tau /= 2.0
+            self._cache.tau /= 2.0
             num_ls += 1
 
         if num_ls == MAX_LINESEARCH_ITERATIONS_DEFAULT:
             # Fall back to projected gradient step
-            c.tau = 0.0
-            u[:] = c.u_half_step
+            self._cache.tau = 0.0
+            u[:] = self._cache.u_half_step
         # Accept the candidate
-        u[:] = c.u_plus
+        u[:] = self._cache.u_plus
