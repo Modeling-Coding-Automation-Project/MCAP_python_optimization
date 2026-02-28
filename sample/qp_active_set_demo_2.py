@@ -1,6 +1,12 @@
 """
-This script demonstrates how to solve a quadratic programming (QP) problem using the QP_ActiveSetSolver class from the python_optimization.qp_active_set module.
-It sets up a QP problem with a quadratic cost matrix, a linear term, constraint matrix, and constraint bounds, then solves for the optimal variable vector.
+File: qp_active_set_demo_2.py
+
+This script demonstrates how to solve a quadratic programming (QP)
+ problem using the QP_ActiveSetSolver class from
+   the python_optimization.qp_active_set module.
+It sets up a QP problem with a quadratic cost matrix,
+ a linear term, constraint matrix, and constraint bounds,
+   then solves for the optimal variable vector.
 """
 from __future__ import annotations
 

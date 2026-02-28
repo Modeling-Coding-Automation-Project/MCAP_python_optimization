@@ -1,6 +1,12 @@
 """
-This script demonstrates how to solve a quadratic programming (QP) problem using the QP_ActiveSetSolver class from the python_optimization.qp_active_set module.
-It sets up a simple QP with two variables and four linear inequality constraints, then solves for the optimal solution using the active set method.
+File: qp_active_set_demo_1.py
+
+This script demonstrates how to solve a quadratic programming
+ (QP) problem using the QP_ActiveSetSolver class from the
+   python_optimization.qp_active_set module.
+It sets up a simple QP with two variables and four linear
+ inequality constraints, then solves for the optimal solution
+   using the active set method.
 """
 from __future__ import annotations
 

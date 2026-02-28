@@ -1,4 +1,6 @@
 """
+File: panoc_demo.py
+
 This script demonstrates the PANOC solver on the Rosenbrock function
 with box constraints.
 
