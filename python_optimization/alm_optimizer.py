@@ -349,7 +349,7 @@ class ALM_Factory:
         self._n1 = n1
         self._n2 = n2
 
-    def psi(self, u: np.ndarray, xi: np.ndarray) -> float:
+    def psi(self, u: np.ndarray, xi: np.ndarray = np.array([])) -> float:
         """
         Compute the augmented cost psi(u; xi).
 
@@ -395,7 +395,7 @@ class ALM_Factory:
 
         return cost
 
-    def d_psi(self, u: np.ndarray, xi: np.ndarray) -> np.ndarray:
+    def d_psi(self, u: np.ndarray, xi: np.ndarray = np.array([])) -> np.ndarray:
         """
         Compute the gradient Nabla psi(u; xi).
 
@@ -931,6 +931,8 @@ class ALM_Optimizer:
         in xi (the augmented cost with c = 0 reduces to f(u) because
         the factory uses c_bar = max(1, c) in the denominator, so the
         penalty term becomes 0.5 * 0 * ... = 0).
+
+        parametric cost is basically ALM_Factory.psi()
         """
         if self._cache.xi is not None:
             saved_c = self._cache.xi[0]
@@ -938,5 +940,5 @@ class ALM_Optimizer:
             cost = self._problem.parametric_cost(u, self._cache.xi)
             self._cache.xi[0] = saved_c
         else:
-            cost = self._problem.parametric_cost(u, np.array([]))
+            cost = self._problem.parametric_cost(u)
         return cost
