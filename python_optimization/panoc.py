@@ -61,7 +61,7 @@ MAX_LIPSCHITZ_CONSTANT_DEFAULT: float = 1e9
 # Maximum number of line-search iterations
 MAX_LINESEARCH_ITERATIONS_DEFAULT: int = 10
 # Default maximum PANOC iterations
-MAX_ITER_DEFAULT_DEFAULT: int = 100
+max_iteration_DEFAULT_DEFAULT: int = 100
 
 # L-BFGS defaults
 SY_EPSILON_DEFAULT: float = 1e-10
@@ -371,7 +371,7 @@ class PANOC_Optimizer:
         Element-wise lower bounds.  ``None`` means no lower bound.
     u_max : np.ndarray or None
         Element-wise upper bounds.  ``None`` means no upper bound.
-    max_iter : int
+    max_iteration : int
         Maximum number of PANOC iterations (default 100).
     tolerance : float or None
         Override the convergence tolerance stored in *cache*.
@@ -384,10 +384,12 @@ class PANOC_Optimizer:
         cache: PANOC_Cache,
         u_min: Optional[np.ndarray] = None,
         u_max: Optional[np.ndarray] = None,
-        max_iter: int = MAX_ITER_DEFAULT_DEFAULT,
+        max_iteration: int = max_iteration_DEFAULT_DEFAULT,
+        max_lipschitz_update_iteration: int = MAX_LIPSCHITZ_UPDATE_ITERATIONS_DEFAULT,
         tolerance: Optional[float] = None,
     ):
-        assert max_iter > 0, "max_iter must be > 0"
+        assert max_iteration > 0, "max_iteration must be > 0"
+        assert max_lipschitz_update_iteration > 0, "max_lipschitz_update_iteration must be >= 0"
         assert u_min is not None or u_max is not None, \
             "At least one of u_min / u_max must be provided"
 
@@ -396,7 +398,8 @@ class PANOC_Optimizer:
         self._cache = cache
         self._u_min = u_min
         self._u_max = u_max
-        self.max_iter = max_iter
+        self.max_iteration = max_iteration
+        self.max_lipschitz_update_iteration = max_lipschitz_update_iteration
 
         if tolerance is not None:
             assert tolerance > 0.0
@@ -435,7 +438,7 @@ class PANOC_Optimizer:
         number_of_iteration = 0
         converged = False
 
-        for _ in range(self.max_iter):
+        for _ in range(self.max_iteration):
             # --- One PANOC step ---
             # 1. Compute FPR
             self._compute_fpr(u)
@@ -465,7 +468,7 @@ class PANOC_Optimizer:
             exit_status = ExitStatus.NOT_FINITE_COMPUTATION
         elif converged:
             exit_status = ExitStatus.CONVERGED
-        elif number_of_iteration >= self.max_iter:
+        elif number_of_iteration >= self.max_iteration:
             exit_status = ExitStatus.NOT_CONVERGED_ITERATIONS
         else:
             exit_status = ExitStatus.NOT_CONVERGED_OUT_OF_TIME
@@ -576,10 +579,11 @@ class PANOC_Optimizer:
         cost_half = self._cost_func(self._cache.u_half_step)
         self._cache.cost_value = self._cost_func(u)
 
-        it_lip = 0
-        while (cost_half > self._lipschitz_check_rhs()
-               and it_lip < MAX_LIPSCHITZ_UPDATE_ITERATIONS_DEFAULT
-               and self._cache.lipschitz_constant < MAX_LIPSCHITZ_CONSTANT_DEFAULT):
+        for _ in range(self.max_lipschitz_update_iteration):
+            if cost_half <= self._lipschitz_check_rhs() or \
+                    self._cache.lipschitz_constant >= MAX_LIPSCHITZ_CONSTANT_DEFAULT:
+                break
+
             self._cache.lbfgs.reset()
             self._cache.lipschitz_constant *= 2.0
             self._cache.gamma /= 2.0
@@ -588,7 +592,6 @@ class PANOC_Optimizer:
             self._half_step()
             cost_half = self._cost_func(self._cache.u_half_step)
             self._compute_fpr(u)
-            it_lip += 1
 
         self._cache.sigma = (
             1.0 - GAMMA_L_COEFFICIENT_DEFAULT) / (4.0 * self._cache.gamma)
