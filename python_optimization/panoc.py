@@ -84,7 +84,7 @@ class ExitStatus(Enum):
 @dataclass
 class SolverStatus:
     """
-    Result returned by :meth:`PANOCOptimizer.solve`.
+    Result returned by :meth:`PANOC_Optimizer.solve`.
 
     Attributes
     ----------
@@ -92,8 +92,6 @@ class SolverStatus:
         Reason the solver terminated.
     number_of_iteration : int
         Number of iterations performed.
-    solve_time : float
-        Wall-clock time in seconds.
     norm_fixed_point_residual : float
         Norm of the fixed-point residual at the solution (||gamma * FPR||).
     cost_value : float
@@ -101,7 +99,6 @@ class SolverStatus:
     """
     exit_status: ExitStatus
     number_of_iteration: int
-    solve_time: float
     norm_fixed_point_residual: float
     cost_value: float
 
@@ -168,7 +165,7 @@ class L_BFGS_Buffer:
 
     def reset(self) -> None:
         """
-        Clear the buffer (cheap – just resets flags).
+        Clear the buffer (cheap - just resets flags).
         """
         self._active_size = 0
         self._first_old = True
@@ -223,7 +220,6 @@ class L_BFGS_Buffer:
         self._active_size = min(self._m, self._active_size + 1)
         return True
 
-    # ------------------------------------------------------------------
     def _new_s_and_y_valid(self, g: np.ndarray, index: int) -> bool:
         """
         Check C-BFGS and curvature conditions for the (s, y) pair at *index*.
@@ -248,15 +244,15 @@ class L_BFGS_Buffer:
 
         return True
 
-    # ------------------------------------------------------------------
     def apply_hessian(self, q: np.ndarray) -> None:
-        """Apply the L-BFGS inverse Hessian approximation **in-place**.
+        """
+        Apply the L-BFGS inverse Hessian approximation **in-place**.
 
         On entry *q* is the gradient (or FPR); on exit it contains H * q.
         Uses the standard two-loop recursion.
         """
         if self._active_size == 0:
-            return  # no curvature info yet – return q unchanged
+            return  # no curvature info yet - return q unchanged
 
         k = self._active_size
         alpha = self._alpha_buf
@@ -276,11 +272,9 @@ class L_BFGS_Buffer:
             q += (alpha[i] - beta) * self._s[i]
 
 
-# ============================================================================
-# PANOC Cache (pre-allocated working memory)
-# ============================================================================
-class PANOCCache:
-    """Pre-allocated working arrays for the PANOC algorithm.
+class PANOC_Cache:
+    """
+    Pre-allocated working arrays for the PANOC algorithm.
 
     Create once and reuse across multiple ``solve`` calls to avoid
     repeated memory allocation.
@@ -334,7 +328,9 @@ class PANOCCache:
 
     # ------------------------------------------------------------------
     def reset(self) -> None:
-        """Reset the cache to its initial state (called before each solve)."""
+        """
+        Reset the cache to its initial state (called before each solve).
+        """
         self.lbfgs.reset()
         self.lhs_ls = 0.0
         self.rhs_ls = 0.0
@@ -346,17 +342,16 @@ class PANOCCache:
         self.gamma = 0.0
         self.norm_gamma_fpr = np.inf
 
-    # ------------------------------------------------------------------
     def exit_condition(self) -> bool:
-        """Check FPR convergence: ||gamma * FPR|| < tolerance."""
+        """
+        Check FPR convergence: ||gamma * FPR|| < tolerance.
+        """
         return self.norm_gamma_fpr < self.tolerance
 
 
-# ============================================================================
-# PANOC Optimizer
-# ============================================================================
-class PANOCOptimizer:
-    """PANOC solver for box-constrained nonlinear optimisation.
+class PANOC_Optimizer:
+    """
+    PANOC solver for box-constrained nonlinear optimization.
 
     Solves::
 
@@ -367,50 +362,29 @@ class PANOCOptimizer:
     Parameters
     ----------
     cost_func : callable
-        ``cost_func(u) -> float`` – evaluates the cost at *u*.
+        ``cost_func(u) -> float`` - evaluates the cost at *u*.
     gradient_func : callable
-        ``gradient_func(u) -> ndarray`` – returns the gradient of the cost at *u*.
-    cache : PANOCCache
-        Pre-allocated cache (create with :class:`PANOCCache`).
+        ``gradient_func(u) -> ndarray`` - returns the gradient of the cost at *u*.
+    cache : PANOC_Cache
+        Pre-allocated cache (create with :class:`PANOC_Cache`).
     u_min : np.ndarray or None
         Element-wise lower bounds.  ``None`` means no lower bound.
     u_max : np.ndarray or None
         Element-wise upper bounds.  ``None`` means no upper bound.
     max_iter : int
         Maximum number of PANOC iterations (default 100).
-    max_duration : float or None
-        Maximum wall-clock time in seconds (``None`` = no limit).
     tolerance : float or None
         Override the convergence tolerance stored in *cache*.
-
-    Example
-    -------
-    >>> n = 2
-    >>> cache = PANOCCache(n, tolerance=1e-6, lbfgs_memory=8)
-    >>> cost = lambda u: (1 - u[0])**2 + 200*(u[1] - u[0]**2)**2
-    >>> def grad(u):
-    ...     g = np.zeros(2)
-    ...     g[0] = -2*(1-u[0]) - 800*u[0]*(u[1]-u[0]**2)
-    ...     g[1] = 400*(u[1]-u[0]**2)
-    ...     return g
-    >>> solver = PANOCOptimizer(cost, grad, cache,
-    ...                         u_min=np.array([-2.0, -2.0]),
-    ...                         u_max=np.array([2.0, 2.0]))
-    >>> u0 = np.array([-1.5, 0.9])
-    >>> status = solver.solve(u0)
-    >>> status.has_converged()
-    True
     """
 
     def __init__(
         self,
         cost_func: Callable[[np.ndarray], float],
         gradient_func: Callable[[np.ndarray], np.ndarray],
-        cache: PANOCCache,
+        cache: PANOC_Cache,
         u_min: Optional[np.ndarray] = None,
         u_max: Optional[np.ndarray] = None,
         max_iter: int = MAX_ITER_DEFAULT_DEFAULT,
-        max_duration: Optional[float] = None,
         tolerance: Optional[float] = None,
     ):
         assert max_iter > 0, "max_iter must be > 0"
@@ -423,17 +397,16 @@ class PANOCOptimizer:
         self._u_min = u_min
         self._u_max = u_max
         self.max_iter = max_iter
-        self.max_duration = max_duration
 
         if tolerance is not None:
             assert tolerance > 0.0
             self._cache.tolerance = tolerance
 
-    # ==================================================================
-    #  Public API
-    # ==================================================================
+        self.solver_status: Optional[SolverStatus] = None
+
     def solve(self, u: np.ndarray) -> SolverStatus:
-        """Run PANOC starting from initial guess *u*.
+        """
+        Run PANOC starting from initial guess *u*.
 
         Parameters
         ----------
@@ -449,12 +422,12 @@ class PANOCOptimizer:
         c = self._cache
         c.reset()
 
-        # --- Initialisation (equivalent to PANOCEngine::init) ---
+        # --- Initialization (equivalent to PANOCEngine::init) ---
         c.cost_value = self._cost_func(u)
         self._estimate_local_lipschitz(u)  # also fills c.gradient_u
-        c.gamma = _GAMMA_L_COEFF / \
+        c.gamma = GAMMA_L_COEFFICIENT_DEFAULT / \
             max(c.lipschitz_constant, MIN_L_ESTIMATE_DEFAULT)
-        c.sigma = (1.0 - _GAMMA_L_COEFF) / (4.0 * c.gamma)
+        c.sigma = (1.0 - GAMMA_L_COEFFICIENT_DEFAULT) / (4.0 * c.gamma)
         self._gradient_step(u)
         self._half_step()
 
@@ -462,7 +435,7 @@ class PANOCOptimizer:
         number_of_iteration = 0
         converged = False
 
-        while True:
+        for _ in range(self.max_iter):
             # --- One PANOC step ---
             # 1. Compute FPR
             self._compute_fpr(u)
@@ -478,7 +451,7 @@ class PANOCOptimizer:
             # 4. L-BFGS direction
             self._lbfgs_direction(u)
 
-            # 5. First iteration ⇒ no line search; otherwise ⇒ line search
+            # 5. First iteration -> no line search; otherwise -> line search
             if c.iteration == 0:
                 self._update_no_linesearch(u)
             else:
@@ -486,15 +459,6 @@ class PANOCOptimizer:
 
             c.iteration += 1
             number_of_iteration += 1
-
-            # Iteration limit
-            if number_of_iteration >= self.max_iter:
-                break
-
-            # Time limit
-            if self.max_duration is not None:
-                if time.perf_counter() - t_start > self.max_duration:
-                    break
 
         # --- Determine exit status ---
         if not np.all(np.isfinite(u)):
@@ -509,28 +473,22 @@ class PANOCOptimizer:
         # Return the feasible half-step (always satisfies constraints)
         u[:] = c.u_half_step
 
-        elapsed = time.perf_counter() - t_start
-        return SolverStatus(
+        self.solver_status = SolverStatus(
             exit_status=exit_status,
             number_of_iteration=number_of_iteration,
-            solve_time=elapsed,
             norm_fixed_point_residual=c.norm_gamma_fpr,
             cost_value=c.cost_value,
         )
 
-    # ==================================================================
-    #  Projection (box constraints)
-    # ==================================================================
     def _project(self, x: np.ndarray) -> None:
-        """Project *x* onto the box [u_min, u_max] **in-place**."""
+        """
+        Project *x* onto the box [u_min, u_max] **in-place**.
+        """
         if self._u_min is not None:
             np.maximum(x, self._u_min, out=x)
         if self._u_max is not None:
             np.minimum(x, self._u_max, out=x)
 
-    # ==================================================================
-    #  Lipschitz estimation (numerical directional derivative)
-    # ==================================================================
     def _estimate_local_lipschitz(self, u: np.ndarray) -> None:
         """Estimate the local Lipschitz constant of the gradient at *u*.
 
@@ -603,7 +561,7 @@ class PANOCOptimizer:
         return (c.cost_value
                 + LIPSCHITZ_UPDATE_EPSILON_DEFAULT * abs(c.cost_value)
                 - inner
-                + (_GAMMA_L_COEFF / (2.0 * c.gamma)) * c.norm_gamma_fpr ** 2)
+                + (GAMMA_L_COEFFICIENT_DEFAULT / (2.0 * c.gamma)) * c.norm_gamma_fpr ** 2)
 
     def _update_lipschitz_constant(self, u: np.ndarray) -> None:
         """Update the Lipschitz constant estimate (and gamma, sigma accordingly)."""
@@ -626,7 +584,7 @@ class PANOCOptimizer:
             self._compute_fpr(u)
             it_lip += 1
 
-        c.sigma = (1.0 - _GAMMA_L_COEFF) / (4.0 * c.gamma)
+        c.sigma = (1.0 - GAMMA_L_COEFFICIENT_DEFAULT) / (4.0 * c.gamma)
 
     # ------------------------------------------------------------------
     #  u_plus computation
