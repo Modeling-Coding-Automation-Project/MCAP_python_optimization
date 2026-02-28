@@ -46,6 +46,13 @@ Module structure:
 References:
     - optimization-engine: https://github.com/alphaville/optimization-engine
 """
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 import numpy as np
 from dataclasses import dataclass
 from enum import Enum, auto
