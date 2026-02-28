@@ -79,41 +79,37 @@ class ExitStatus(Enum):
     NOT_FINITE_COMPUTATION = auto()
 
 
-# ============================================================================
-# Solver status (returned after solve)
-# ============================================================================
 @dataclass
 class SolverStatus:
-    """Result returned by :meth:`PANOCOptimizer.solve`.
+    """
+    Result returned by :meth:`PANOCOptimizer.solve`.
 
     Attributes
     ----------
     exit_status : ExitStatus
         Reason the solver terminated.
-    num_iter : int
+    number_of_iteration : int
         Number of iterations performed.
     solve_time : float
         Wall-clock time in seconds.
-    norm_fpr : float
+    norm_fixed_point_residual : float
         Norm of the fixed-point residual at the solution (||gamma * FPR||).
     cost_value : float
         Cost function value at the solution.
     """
     exit_status: ExitStatus
-    num_iter: int
+    number_of_iteration: int
     solve_time: float
-    norm_fpr: float
+    norm_fixed_point_residual: float
     cost_value: float
 
     def has_converged(self) -> bool:
         return self.exit_status == ExitStatus.CONVERGED
 
 
-# ============================================================================
-# L-BFGS buffer  (two-loop recursion with C-BFGS safeguard)
-# ============================================================================
-class LBFGSBuffer:
-    """Limited-memory BFGS buffer with C-BFGS safeguard.
+class L_BFGS_Buffer:
+    """
+    Limited-memory BFGS buffer with C-BFGS safeguard.
 
     Stores pairs (s_k, y_k) and computes the product  H * q  using
     the standard two-loop recursion, where H is the L-BFGS approximation
@@ -143,6 +139,7 @@ class LBFGSBuffer:
     ):
         assert problem_size > 0
         assert buffer_size > 0
+
         self._n = problem_size
         self._m = buffer_size
         self.sy_epsilon = sy_epsilon
@@ -153,6 +150,7 @@ class LBFGSBuffer:
         self._s = np.zeros((buffer_size + 1, problem_size))
         self._y = np.zeros((buffer_size + 1, problem_size))
         self._rho = np.zeros(buffer_size + 1)
+
         # workspace for two-loop recursion
         self._alpha_buf = np.zeros(buffer_size)
 
@@ -162,15 +160,17 @@ class LBFGSBuffer:
         self._old_g = np.zeros(problem_size)
         self._first_old: bool = True
 
-    # ------------------------------------------------------------------
     def reset(self) -> None:
-        """Clear the buffer (cheap – just resets flags)."""
+        """
+        Clear the buffer (cheap – just resets flags).
+        """
         self._active_size = 0
         self._first_old = True
 
     # ------------------------------------------------------------------
     def update_hessian(self, g: np.ndarray, state: np.ndarray) -> bool:
-        """Feed a new (gradient, state) pair to the buffer.
+        """
+        Feed a new (gradient, state) pair to the buffer.
 
         Parameters
         ----------
@@ -294,7 +294,7 @@ class PANOCCache:
         self.tolerance: float = tolerance
 
         # L-BFGS buffer
-        self.lbfgs = LBFGSBuffer(
+        self.lbfgs = L_BFGS_Buffer(
             n, lbfgs_memory,
             sy_epsilon=SY_EPSILON_DEFAULT,
             cbfgs_alpha=CBFGS_ALPHA_DEFAULT,
@@ -447,7 +447,7 @@ class PANOCOptimizer:
         self._half_step()
 
         # --- Main loop ---
-        num_iter = 0
+        number_of_iteration = 0
         converged = False
 
         while True:
@@ -473,10 +473,10 @@ class PANOCOptimizer:
                 self._linesearch(u)
 
             c.iteration += 1
-            num_iter += 1
+            number_of_iteration += 1
 
             # Iteration limit
-            if num_iter >= self.max_iter:
+            if number_of_iteration >= self.max_iter:
                 break
 
             # Time limit
@@ -489,7 +489,7 @@ class PANOCOptimizer:
             exit_status = ExitStatus.NOT_FINITE_COMPUTATION
         elif converged:
             exit_status = ExitStatus.CONVERGED
-        elif num_iter >= self.max_iter:
+        elif number_of_iteration >= self.max_iter:
             exit_status = ExitStatus.NOT_CONVERGED_ITERATIONS
         else:
             exit_status = ExitStatus.NOT_CONVERGED_OUT_OF_TIME
@@ -500,9 +500,9 @@ class PANOCOptimizer:
         elapsed = time.perf_counter() - t_start
         return SolverStatus(
             exit_status=exit_status,
-            num_iter=num_iter,
+            number_of_iteration=number_of_iteration,
             solve_time=elapsed,
-            norm_fpr=c.norm_gamma_fpr,
+            norm_fixed_point_residual=c.norm_gamma_fpr,
             cost_value=c.cost_value,
         )
 
