@@ -12,8 +12,8 @@ ALM/PM solves problems of the form:
 
     min  f(u)
      u
-    s.t. u ∈ U           (box constraints on decision variables, handled by PANOC)
-         F1(u) ∈ C       (ALM-type constraints, e.g., output constraints)
+    s.t. u element of U           (box constraints on decision variables, handled by PANOC)
+         F1(u) element of C       (ALM-type constraints, e.g., output constraints)
          F2(u) = 0        (PM-type equality constraints, optional)
 
 For nonlinear MPC applications, the typical constraints are:
@@ -21,13 +21,13 @@ For nonlinear MPC applications, the typical constraints are:
     - y_min <= Y(u) <= y_max  (output box constraints → F1(u) = Y(u), C = [y_min, y_max])
 
 Algorithm overview (outer loop):
-1. y ← Pi_Y(y)                           (project Lagrange multipliers onto set Y)
-2. u ← argmin_{u∈U} psi(u; xi)             (solve inner problem via PANOC, xi = (c, y))
-3. y⁺ ← y + c[F1(u) - Pi_C(F1(u) + y/c)] (update Lagrange multipliers)
-4. z⁺ ← ||y⁺ - y||, t⁺ ← ||F2(u)||     (compute infeasibility measures)
-5. If z⁺ ≤ cδ and t⁺ ≤ δ and ε_nu ≤ ε    → converged, return (u, y⁺)
-6. Else if no sufficient decrease         → c ← rho·c  (increase penalty)
-7. ε̄ ← max(ε, β·ε̄)                      (shrink inner tolerance)
+1. y <- Pi_Y(y)                           (project Lagrange multipliers onto set Y)
+2. u <- argmin_{uelement ofU} psi(u; xi)             (solve inner problem via PANOC, xi = (c, y))
+3. y^+ <- y + c[F1(u) - Pi_C(F1(u) + y/c)] (update Lagrange multipliers)
+4. z^+ <- ||y^+ - y||, t^+ <- ||F2(u)||     (compute infeasibility measures)
+5. If z^+ ≤ cdelta and t^+ ≤ delta and epsilon_nu ≤ epsilon    → converged, return (u, y^+)
+6. Else if no sufficient decrease         → c <- rho·c  (increase penalty)
+7. epsilon <- max(epsilon, beta·epsilon)                      (shrink inner tolerance)
 
 The augmented cost function is:
     psi(u; xi) = f(u) + (c/2)[dist^2_C(F1(u) + y/c_bar) + ||F2(u)||^2]
@@ -50,7 +50,6 @@ import numpy as np
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Callable, Optional
-import time
 
 from python_optimization.panoc import (
     ExitStatus,
@@ -72,7 +71,7 @@ DEFAULT_PENALTY_UPDATE_FACTOR: float = 5.0
 # Factor by which the inner tolerance is shrunk each iteration (beta)
 DEFAULT_EPSILON_UPDATE_FACTOR: float = 0.1
 # Sufficient decrease coefficient (theta) for penalty stall check
-DEFAULT_INFEAS_SUFFICIENT_DECREASE_FACTOR: float = 0.1
+DEFAULT_INFEASIBLE_SUFFICIENT_DECREASE_FACTOR: float = 0.1
 # Initial inner tolerance (epsilon_0)
 DEFAULT_INITIAL_TOLERANCE: float = 0.1
 # Initial penalty parameter (c_0)
@@ -166,11 +165,11 @@ class ALM_SolverStatus:
     last_problem_norm_fpr : float
         Norm of the fixed-point residual of the last inner problem.
     lagrange_multipliers : np.ndarray or None
-        Final Lagrange multiplier vector y⁺ (None if no ALM constraints).
+        Final Lagrange multiplier vector y^+ (None if no ALM constraints).
     penalty : float
         Final value of the penalty parameter c.
     delta_y_norm : float
-        ||y⁺ - y|| at termination (ALM infeasibility measure).
+        ||y^+ - y|| at termination (ALM infeasibility measure).
     f2_norm : float
         ||F2(u)|| at termination (PM infeasibility measure).
     cost : float
@@ -188,7 +187,7 @@ class ALM_SolverStatus:
 
     def has_converged(self) -> bool:
         """
-        Return True if the solver converged to an (ε, δ)-AKKT point.
+        Return True if the solver converged to an (epsilon, delta)-AKKT point.
         """
         return self.exit_status == ExitStatus.CONVERGED
 
@@ -220,12 +219,12 @@ class ALM_Cache:
         self.n1: int = n1
         self.n2: int = n2
 
-        # Lagrange multipliers (next iterate, y⁺)
+        # Lagrange multipliers (next iterate, y^+)
         self.y_plus: Optional[np.ndarray] = (
             np.zeros(n1) if n1 > 0 else None
         )
 
-        # Parameter vector xi = (c, y) ∈ R^{1+n1}
+        # Parameter vector xi = (c, y) element of R^{1+n1}
         # xi[0] = c (penalty parameter), xi[1:] = y (Lagrange multipliers)
         if n1 + n2 > 0:
             self.xi: Optional[np.ndarray] = np.zeros(1 + n1)
@@ -242,7 +241,7 @@ class ALM_Cache:
         )
 
         # Infeasibility measures
-        self.delta_y_norm: float = 0.0       # ||y⁺ - y|| at current iteration
+        self.delta_y_norm: float = 0.0       # ||y^+ - y|| at current iteration
         self.delta_y_norm_plus: float = np.inf
         self.f2_norm: float = 0.0             # ||F2(u)|| at current iteration
         self.f2_norm_plus: float = np.inf
@@ -440,9 +439,6 @@ class ALM_Factory:
         return grad
 
 
-# ============================================================================
-# ALM Problem
-# ============================================================================
 class ALM_Problem:
     """
     Problem definition for ALM/PM optimization.
@@ -515,9 +511,6 @@ class ALM_Problem:
         self.n2 = n2
 
 
-# ============================================================================
-# ALM Optimizer
-# ============================================================================
 class ALM_Optimizer:
     """
     ALM/PM solver for constrained nonlinear optimization.
@@ -526,9 +519,9 @@ class ALM_Optimizer:
 
         min  f(u)
          u
-        s.t. u ∈ U            (box constraints, handled by PANOC)
-             F1(u) ∈ C        (ALM-type constraints)
-             F2(u) = 0         (PM-type constraints, optional)
+        s.t. u element of U      (box constraints, handled by PANOC)
+             F1(u) element of C  (ALM-type constraints)
+             F2(u) = 0           (PM-type constraints, optional)
 
     Parameters
     ----------
@@ -541,17 +534,17 @@ class ALM_Optimizer:
     max_inner_iterations : int
         Maximum number of inner PANOC iterations per outer iteration.
     epsilon_tolerance : float
-        Target tolerance ε for the inner solver.
+        Target tolerance epsilon for the inner solver.
     delta_tolerance : float
-        Tolerance δ for infeasibility.
+        Tolerance delta for infeasibility.
     penalty_update_factor : float
         Factor rho > 1 to increase penalty parameter c.
     epsilon_update_factor : float
-        Factor β ∈ (0, 1) to decrease inner tolerance.
+        Factor beta element of (0, 1) to decrease inner tolerance.
     sufficient_decrease_coeff : float
-        Coefficient θ ∈ (0, 1) for sufficient decrease check.
+        Coefficient θ element of (0, 1) for sufficient decrease check.
     initial_inner_tolerance : float
-        Initial inner tolerance ε₀ (must be >= epsilon_tolerance).
+        Initial inner tolerance epsilon₀ (must be >= epsilon_tolerance).
     initial_penalty : float or None
         Initial penalty c₀.  None uses the cache default.
     initial_y : np.ndarray or None
@@ -570,7 +563,7 @@ class ALM_Optimizer:
         delta_tolerance: float = DEFAULT_DELTA_TOLERANCE,
         penalty_update_factor: float = DEFAULT_PENALTY_UPDATE_FACTOR,
         epsilon_update_factor: float = DEFAULT_EPSILON_UPDATE_FACTOR,
-        sufficient_decrease_coeff: float = DEFAULT_INFEAS_SUFFICIENT_DECREASE_FACTOR,
+        sufficient_decrease_coeff: float = DEFAULT_INFEASIBLE_SUFFICIENT_DECREASE_FACTOR,
         initial_inner_tolerance: float = DEFAULT_INITIAL_TOLERANCE,
         initial_penalty: Optional[float] = None,
         initial_y: Optional[np.ndarray] = None,
@@ -618,9 +611,6 @@ class ALM_Optimizer:
         # Set initial inner tolerance
         self._cache.panoc_cache.tolerance = initial_inner_tolerance
 
-    # ----------------------------------------------------------------
-    #  Main API
-    # ----------------------------------------------------------------
     def solve(self, u: np.ndarray) -> ALM_SolverStatus:
         """
         Solve the ALM/PM problem.
@@ -635,36 +625,19 @@ class ALM_Optimizer:
         ALM_SolverStatus
             Solver status including exit condition, iterations, cost, etc.
         """
-        tic = time.perf_counter()
         self._cache.reset()
         self._cache.panoc_cache.tolerance = self.initial_inner_tolerance
 
         num_outer_iterations = 0
         exit_status = ExitStatus.CONVERGED
         should_continue = True
-        inner_exit_status = ExitStatus.CONVERGED
 
         for _ in range(self.max_outer_iterations):
-            # Check time limit
-            if self.max_duration is not None:
-                elapsed = time.perf_counter() - tic
-                if elapsed >= self.max_duration:
-                    exit_status = ExitStatus.NOT_CONVERGED_OUT_OF_TIME
-                    break
-
             num_outer_iterations += 1
-            should_continue, inner_exit_status = self._step(u)
-
-            if inner_exit_status == ExitStatus.NOT_CONVERGED_OUT_OF_TIME:
-                exit_status = ExitStatus.NOT_CONVERGED_OUT_OF_TIME
-                break
+            should_continue, _ = self._step(u)
 
             if not should_continue:
                 break
-
-        # Determine final exit status
-        if exit_status != ExitStatus.NOT_CONVERGED_OUT_OF_TIME:
-            exit_status = inner_exit_status
 
         if (num_outer_iterations == self.max_outer_iterations
                 and should_continue):
@@ -689,16 +662,12 @@ class ALM_Optimizer:
             num_inner_iterations=self._cache.inner_iteration_count,
             last_problem_norm_fpr=self._cache.last_inner_problem_norm_fpr,
             lagrange_multipliers=lagrange,
-            solve_time=time.perf_counter() - tic,
             penalty=c,
             delta_y_norm=self._cache.delta_y_norm_plus,
             f2_norm=self._cache.f2_norm_plus,
             cost=cost_value,
         )
 
-    # ----------------------------------------------------------------
-    #  ALM step (one outer iteration)
-    # ----------------------------------------------------------------
     def _step(self, u: np.ndarray):
         """
         Perform one ALM outer iteration.
@@ -706,7 +675,7 @@ class ALM_Optimizer:
         Returns
         -------
         tuple (should_continue: bool, inner_exit_status: ExitStatus)
-            should_continue is False when an (ε, δ)-AKKT point is found.
+            should_continue is False when an (epsilon, delta)-AKKT point is found.
         """
         # 1. Project y onto set Y
         self._project_on_set_y()
@@ -720,12 +689,12 @@ class ALM_Optimizer:
         inner_exit_status = inner_status.exit_status
 
         # 3. Update Lagrange multipliers:
-        #    y⁺ ← y + c·[F1(u) - Pi_C(F1(u) + y/c)]
+        #    y^+ <- y + c·[F1(u) - Pi_C(F1(u) + y/c)]
         self._update_lagrange_multipliers(u)
 
         # 4. Compute infeasibility measures
         self._compute_pm_infeasibility(u)   # ||F2(u)||
-        self._compute_alm_infeasibility()   # ||y⁺ - y||
+        self._compute_alm_infeasibility()   # ||y^+ - y||
 
         # 5. Check exit criterion
         if self._is_exit_criterion_satisfied():
@@ -735,7 +704,7 @@ class ALM_Optimizer:
         if not self._is_penalty_stall_criterion():
             self._update_penalty_parameter()
 
-        # 7. Shrink inner tolerance: ε̄ ← max(ε, β·ε̄)
+        # 7. Shrink inner tolerance: epsilon <- max(epsilon, beta·epsilon)
         self._update_inner_tolerance()
 
         # 8. Final bookkeeping
@@ -743,18 +712,17 @@ class ALM_Optimizer:
 
         return True, inner_exit_status
 
-    # ----------------------------------------------------------------
-    #  Private helper methods
-    # ----------------------------------------------------------------
     def _project_on_set_y(self) -> None:
-        """Project Lagrange multipliers y onto set Y (in-place on xi[1:])."""
+        """
+        Project Lagrange multipliers y onto set Y (in-place on xi[1:]).
+        """
         if (self._problem.set_y_project is not None
                 and self._cache.xi is not None):
             self._problem.set_y_project(self._cache.xi[1:])
 
     def _solve_inner_problem(self, u: np.ndarray) -> PANOC_SolverStatus:
         """
-        Solve the inner problem ``min_{u ∈ U} psi(u; xi)`` using PANOC.
+        Solve the inner problem ``min_{u element of U} psi(u; xi)`` using PANOC.
 
         The parameter vector xi is captured from the cache by reference.
         """
@@ -781,7 +749,7 @@ class ALM_Optimizer:
     def _update_lagrange_multipliers(self, u: np.ndarray) -> None:
         """
         Update Lagrange multipliers:
-            y⁺ = y + c · [F1(u) - Pi_C(F1(u) + y/c)]
+            y^+ = y + c · [F1(u) - Pi_C(F1(u) + y/c)]
 
         Steps:
             1. w = F1(u)
@@ -817,7 +785,7 @@ class ALM_Optimizer:
         self._cache.y_plus[:] = y + c * (w - self._cache.y_plus)
 
     def _compute_alm_infeasibility(self) -> None:
-        """Compute ALM infeasibility: ||y⁺ - y||."""
+        """Compute ALM infeasibility: ||y^+ - y||."""
         if self._cache.y_plus is not None and self._cache.xi is not None:
             y = self._cache.xi[1:]
             self._cache.delta_y_norm_plus = float(
@@ -835,17 +803,17 @@ class ALM_Optimizer:
 
     def _is_exit_criterion_satisfied(self) -> bool:
         """
-        Check if (ε, δ)-AKKT conditions are satisfied.
+        Check if (epsilon, delta)-AKKT conditions are satisfied.
 
         Three criteria must hold simultaneously:
-            1. ||Δy|| ≤ c·δ   (or no ALM constraints)
-            2. ||F2(u)|| ≤ δ   (or no PM constraints)
-            3. ε_nu ≤ ε         (inner tolerance has reached target)
+            1. ||deltay|| ≤ c·delta   (or no ALM constraints)
+            2. ||F2(u)|| ≤ delta   (or no PM constraints)
+            3. epsilon_nu ≤ epsilon         (inner tolerance has reached target)
         """
         cache = self._cache
         problem = self._problem
 
-        # Criterion 1: ||Δy|| ≤ c·δ
+        # Criterion 1: ||deltay|| ≤ c·delta
         if problem.n1 > 0:
             if cache.xi is not None:
                 c = cache.xi[0]
@@ -859,7 +827,7 @@ class ALM_Optimizer:
         else:
             criterion_1 = True
 
-        # Criterion 2: ||F2(u)|| ≤ δ
+        # Criterion 2: ||F2(u)|| ≤ delta
         criterion_2 = (
             problem.n2 == 0
             or cache.f2_norm_plus
@@ -917,7 +885,7 @@ class ALM_Optimizer:
             self._cache.xi[0] *= self.penalty_update_factor
 
     def _update_inner_tolerance(self) -> None:
-        """Shrink inner tolerance: ε̄ ← max(ε, β · ε̄)."""
+        """Shrink inner tolerance: epsilon <- max(epsilon, beta · epsilon)."""
         current = self._cache.panoc_cache.tolerance
         self._cache.panoc_cache.tolerance = max(
             current * self.epsilon_update_factor,
@@ -927,14 +895,14 @@ class ALM_Optimizer:
     def _final_cache_update(self) -> None:
         """
         End-of-iteration bookkeeping: increment counter, shift
-        infeasibility measures, copy y⁺ → y, and reset PANOC cache.
+        infeasibility measures, copy y^+ → y, and reset PANOC cache.
         """
         cache = self._cache
         cache.iteration += 1
         cache.delta_y_norm = cache.delta_y_norm_plus
         cache.f2_norm = cache.f2_norm_plus
 
-        # Copy y⁺ into xi[1:]  (= update y)
+        # Copy y^+ into xi[1:]  (= update y)
         if cache.xi is not None and cache.y_plus is not None:
             cache.xi[1:] = cache.y_plus
 

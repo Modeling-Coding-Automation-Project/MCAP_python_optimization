@@ -77,7 +77,6 @@ class ExitStatus(Enum):
     """
     CONVERGED = auto()
     NOT_CONVERGED_ITERATIONS = auto()
-    NOT_CONVERGED_OUT_OF_TIME = auto()
     NOT_FINITE_COMPUTATION = auto()
 
 
@@ -467,10 +466,8 @@ class PANOC_Optimizer:
             exit_status = ExitStatus.NOT_FINITE_COMPUTATION
         elif converged:
             exit_status = ExitStatus.CONVERGED
-        elif number_of_iteration >= self.max_iteration:
-            exit_status = ExitStatus.NOT_CONVERGED_ITERATIONS
         else:
-            exit_status = ExitStatus.NOT_CONVERGED_OUT_OF_TIME
+            exit_status = ExitStatus.NOT_CONVERGED_ITERATIONS
 
         # Return the feasible half-step (always satisfies constraints)
         u[:] = c.u_half_step
