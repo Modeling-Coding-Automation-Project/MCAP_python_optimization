@@ -569,8 +569,7 @@ class ALM_PM_Optimizer:
         sufficient_decrease_coefficient: float = DEFAULT_INFEASIBLE_SUFFICIENT_DECREASE_FACTOR,
         initial_inner_tolerance: float = DEFAULT_INITIAL_TOLERANCE,
         initial_penalty: Optional[float] = None,
-        initial_y: Optional[np.ndarray] = None,
-        max_duration: Optional[float] = None,
+        initial_y: Optional[np.ndarray] = None
     ):
         assert max_outer_iterations > 0, "max_outer_iterations must be positive"
         assert max_inner_iterations > 0, "max_inner_iterations must be positive"
