@@ -568,15 +568,15 @@ class OptimizationEngine_CostMatrices:
             np.ndarray: Gradient of shape (nu * Np, 1).
         """
         U_horizon = u_flat.reshape((self.nu, self.Np))
-        params = self.state_space_parameters
+        parameters = self.state_space_parameters
 
         X_horizon = self.simulate_trajectory(
-            self.X_initial, U_horizon, params)
+            self.X_initial, U_horizon, parameters)
         Y_horizon = self._compute_Y_horizon(X_horizon)
 
         # Terminal adjoint
         C_N = self.calculate_measurement_jacobian_x(
-            X_horizon[:, self.Np], params)
+            X_horizon[:, self.Np], parameters)
         eN_y_r = Y_horizon[:, self.Np] - self.reference_trajectory[:, self.Np]
         lam_next = 2.0 * (self.Px @ X_horizon[:, self.Np] +
                           C_N.T @ (self.Py @ eN_y_r))
@@ -584,13 +584,13 @@ class OptimizationEngine_CostMatrices:
         gradient = np.zeros_like(U_horizon)
         for k in reversed(range(self.Np)):
             Cx_k = self.calculate_measurement_jacobian_x(
-                X_horizon[:, k], params)
+                X_horizon[:, k], parameters)
             ek_y = Y_horizon[:, k] - self.reference_trajectory[:, k]
 
             A_k = self.calculate_state_jacobian_x(
-                X_horizon[:, k], U_horizon[:, k], params)
+                X_horizon[:, k], U_horizon[:, k], parameters)
             B_k = self.calculate_state_jacobian_u(
-                X_horizon[:, k], U_horizon[:, k], params)
+                X_horizon[:, k], U_horizon[:, k], parameters)
 
             gradient[:, k] = 2.0 * self.R @ U_horizon[:, k] + B_k.T @ lam_next
 
@@ -651,27 +651,27 @@ class OptimizationEngine_CostMatrices:
         """
         U_horizon = u_flat.reshape((self.nu, self.Np))
         D = d.reshape((self.ny, self.Np + 1))
-        params = self.state_space_parameters
+        parameters = self.state_space_parameters
 
         X_horizon = self.simulate_trajectory(
-            self.X_initial, U_horizon, params)
+            self.X_initial, U_horizon, parameters)
 
         # Backward adjoint pass
         C_N = self.calculate_measurement_jacobian_x(
-            X_horizon[:, self.Np], params)
+            X_horizon[:, self.Np], parameters)
         mu = C_N.T @ D[:, self.Np]
 
         result = np.zeros_like(U_horizon)
         for k in reversed(range(self.Np)):
             A_k = self.calculate_state_jacobian_x(
-                X_horizon[:, k], U_horizon[:, k], params)
+                X_horizon[:, k], U_horizon[:, k], parameters)
             B_k = self.calculate_state_jacobian_u(
-                X_horizon[:, k], U_horizon[:, k], params)
+                X_horizon[:, k], U_horizon[:, k], parameters)
 
             result[:, k] = B_k.T @ mu
 
             C_k = self.calculate_measurement_jacobian_x(
-                X_horizon[:, k], params)
+                X_horizon[:, k], parameters)
             mu = C_k.T @ D[:, k] + A_k.T @ mu
 
         return result.reshape((-1, 1))
