@@ -30,8 +30,8 @@ from python_optimization.alm_optimizer import (
     ALM_Problem,
     ALM_Cache,
     ALM_Optimizer,
-    make_box_projection,
-    make_ball_projection,
+    BoxProjectionOperator,
+    BallProjectionOperator,
 )
 
 # ============================================================
@@ -76,7 +76,7 @@ u_min = np.array([-1.5, -1.5])
 u_max = np.array([1.5, 1.5])
 
 # Set Y for Lagrange multipliers: ball of large radius (practically unbounded)
-project_Y = make_ball_projection(center=None, radius=1e6)
+project_Y = BallProjectionOperator(center=None, radius=1e6)
 
 # ============================================================
 # 2. Build factory, problem, cache, optimizer

@@ -41,7 +41,7 @@ Module structure:
     - ALM_Cache:         Pre-allocated working memory for the algorithm
     - ALM_Optimizer:     Main ALM/PM solver (outer loop with PANOC inner solver)
     - ALM_SolverStatus:  Result returned by ALM_Optimizer.solve()
-    - Utility functions: make_box_projection, make_ball_projection
+    - Utility classes:   BoxProjectionOperator, BallProjectionOperator
 
 References:
     - optimization-engine: https://github.com/alphaville/optimization-engine
@@ -87,14 +87,11 @@ DEFAULT_INITIAL_PENALTY: float = 10.0
 SMALL_EPSILON: float = 1e-30
 
 
-def make_box_projection(
-    lower: Optional[np.ndarray] = None,
-    upper: Optional[np.ndarray] = None,
-) -> Callable[[np.ndarray], None]:
+class BoxProjectionOperator:
     """
-    Create an in-place box projection function.
+    In-place box projection operator.
 
-    Returns a callable that projects x in-place onto the box [lower, upper].
+    Projects x in-place onto the box [lower, upper].
 
     Parameters
     ----------
@@ -102,30 +99,33 @@ def make_box_projection(
         Element-wise lower bounds.  ``None`` means no lower bound (-inf).
     upper : np.ndarray or None
         Element-wise upper bounds.  ``None`` means no upper bound (+inf).
-
-    Returns
-    -------
-    callable
-        Function with signature ``project(x: np.ndarray) -> None``
-        that clips x in-place.
     """
-    def project(x: np.ndarray) -> None:
-        if lower is not None:
-            np.maximum(x, lower, out=x)
-        if upper is not None:
-            np.minimum(x, upper, out=x)
-    return project
+
+    def __init__(
+        self,
+        lower: Optional[np.ndarray] = None,
+        upper: Optional[np.ndarray] = None,
+    ):
+        self.lower = lower
+        self.upper = upper
+
+    def project(self, x: np.ndarray) -> None:
+        """Project *x* in-place onto the box [lower, upper]."""
+        if self.lower is not None:
+            np.maximum(x, self.lower, out=x)
+        if self.upper is not None:
+            np.minimum(x, self.upper, out=x)
+
+    def __call__(self, x: np.ndarray) -> None:
+        """Callable interface — delegates to :meth:`project`."""
+        self.project(x)
 
 
-def make_ball_projection(
-    center: Optional[np.ndarray],
-    radius: float,
-) -> Callable[[np.ndarray], None]:
+class BallProjectionOperator:
     """
-    Create an in-place Euclidean ball projection function.
+    In-place Euclidean ball projection operator.
 
-    Returns a callable that projects x in-place onto the ball
-    {x : ||x - center|| <= radius}.
+    Projects x in-place onto the ball {x : ||x - center|| <= radius}.
 
     Parameters
     ----------
@@ -133,27 +133,33 @@ def make_ball_projection(
         Center of the ball.  ``None`` means the origin.
     radius : float
         Radius of the ball (must be positive).
-
-    Returns
-    -------
-    callable
-        Function with signature ``project(x: np.ndarray) -> None``
-        that projects x in-place.
     """
-    assert radius > 0.0, "radius must be positive"
 
-    def project(x: np.ndarray) -> None:
-        if center is not None:
-            d = x - center
+    def __init__(
+        self,
+        center: Optional[np.ndarray],
+        radius: float,
+    ):
+        assert radius > 0.0, "radius must be positive"
+        self.center = center
+        self.radius = radius
+
+    def project(self, x: np.ndarray) -> None:
+        """Project *x* in-place onto the ball."""
+        if self.center is not None:
+            d = x - self.center
         else:
             d = x.copy()
         norm_d = float(np.linalg.norm(d))
-        if norm_d > radius:
-            if center is not None:
-                x[:] = center + (radius / norm_d) * d
+        if norm_d > self.radius:
+            if self.center is not None:
+                x[:] = self.center + (self.radius / norm_d) * d
             else:
-                x[:] = (radius / norm_d) * d
-    return project
+                x[:] = (self.radius / norm_d) * d
+
+    def __call__(self, x: np.ndarray) -> None:
+        """Callable interface — delegates to :meth:`project`."""
+        self.project(x)
 
 
 @dataclass
