@@ -59,9 +59,6 @@ from python_optimization.panoc import (
     PANOC_Optimizer,
 )
 
-# ============================================================================
-# Constants (matching optimization-engine defaults)
-# ============================================================================
 # Maximum number of outer ALM/PM iterations
 DEFAULT_MAX_OUTER_ITERATIONS: int = 50
 # Maximum number of inner PANOC iterations per outer iteration
@@ -81,12 +78,9 @@ DEFAULT_INITIAL_TOLERANCE: float = 0.1
 # Initial penalty parameter (c_0)
 DEFAULT_INITIAL_PENALTY: float = 10.0
 # Machine epsilon for numerical comparisons
-SMALL_EPSILON: float = float(np.finfo(np.float64).eps)
+SMALL_EPSILON: float = 1e-30
 
 
-# ============================================================================
-# Utility: Projection Functions
-# ============================================================================
 def make_box_projection(
     lower: Optional[np.ndarray] = None,
     upper: Optional[np.ndarray] = None,
