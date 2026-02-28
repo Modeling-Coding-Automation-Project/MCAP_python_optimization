@@ -84,6 +84,8 @@ class VectorRingBuffer:
         Maximum number of entries the buffer can hold.
     element_size : int, optional
         Size of each vector element.  If 0 (default), each element is a scalar.
+    active_size : int
+        Number of valid entries currently in the buffer (<= buffer_size).
     """
 
     def __init__(self, buffer_size: int, element_size: int = 0):
@@ -95,12 +97,12 @@ class VectorRingBuffer:
             self._data = np.zeros(buffer_size)
         self._head: int = 0
 
-        self.active_size: int = 0  # number of valid entries (<= buffer_size)
+        self._active_size: int = 0  # number of valid entries (<= buffer_size)
 
     def reset(self) -> None:
         """Reset the buffer (O(1) — only resets counters)."""
         self._head = 0
-        self.active_size = 0
+        self._active_size = 0
 
     def push(self, value) -> None:
         """
@@ -111,8 +113,8 @@ class VectorRingBuffer:
         self._head += 1
         if self._head >= self._buffer_size:
             self._head = 0
-        if self.active_size < self._buffer_size:
-            self.active_size += 1
+        if self._active_size < self._buffer_size:
+            self._active_size += 1
 
     def get(self, index_from_latest: int) -> np.ndarray:
         """
@@ -128,7 +130,7 @@ class VectorRingBuffer:
         np.ndarray
             A view into the stored vector (or a scalar).
         """
-        if index_from_latest < 0 or index_from_latest >= self.active_size:
+        if index_from_latest < 0 or index_from_latest >= self._active_size:
             raise IndexError("Index out of bounds for VectorRingBuffer")
 
         index = self._head - 1 - index_from_latest
@@ -136,6 +138,12 @@ class VectorRingBuffer:
             index += self._buffer_size
 
         return self._data[index]
+
+    def get_active_size(self) -> int:
+        """
+        Number of valid entries currently in the buffer.
+        """
+        return self._active_size
 
 
 class ExitStatus(Enum):
@@ -320,13 +328,13 @@ class L_BFGS_Buffer:
         On entry *q* is the gradient (or FPR); on exit it contains H * q.
         Uses the standard two-loop recursion.
         """
-        if self._s.active_size == 0:
+        if self._s.get_active_size() == 0:
             return  # no curvature info yet - return q unchanged
 
         alpha = self._alpha_buf
 
         # --- forward pass ---
-        for i in range(self._s.active_size):
+        for i in range(self._s.get_active_size()):
             alpha[i] = self._rho.get(i) * np.dot(self._s.get(i), q)
             q -= alpha[i] * self._y.get(i)  # q = q - alpha_i * y_i
 
@@ -334,7 +342,7 @@ class L_BFGS_Buffer:
         q *= self._gamma
 
         # --- backward pass ---
-        for i in range(self._s.active_size - 1, -1, -1):
+        for i in range(self._s.get_active_size() - 1, -1, -1):
             beta = self._rho.get(i) * np.dot(self._y.get(i), q)
             # q = q + (alpha_i - beta) * s_i
             q += (alpha[i] - beta) * self._s.get(i)
