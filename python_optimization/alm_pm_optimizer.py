@@ -612,7 +612,9 @@ class ALM_PM_Optimizer:
         # Set initial inner tolerance
         self._cache.panoc_cache.tolerance = initial_inner_tolerance
 
-    def solve(self, u: np.ndarray) -> ALM_SolverStatus:
+        self.solver_status: Optional[ALM_SolverStatus] = None
+
+    def solve(self, u: np.ndarray):
         """
         Solve the ALM/PM problem.
 
@@ -657,7 +659,7 @@ class ALM_PM_Optimizer:
             else None
         )
 
-        return ALM_SolverStatus(
+        self.solver_status = ALM_SolverStatus(
             exit_status=exit_status,
             num_outer_iterations=num_outer_iterations,
             num_inner_iterations=self._cache.inner_iteration_count,
@@ -668,6 +670,30 @@ class ALM_PM_Optimizer:
             f2_norm=self._cache.f2_norm_plus,
             cost=cost_value,
         )
+
+    def set_solver_max_iteration(
+        self,
+        outer_max_iterations: int = DEFAULT_MAX_OUTER_ITERATIONS,
+        inner_max_iterations: int = DEFAULT_MAX_INNER_ITERATIONS,
+    ) -> None:
+        """
+        Set the maximum number of iterations for the solver.
+        """
+        assert outer_max_iterations > 0, "outer_max_iterations must be positive"
+        assert inner_max_iterations > 0, "inner_max_iterations must be positive"
+
+        self.max_outer_iterations = outer_max_iterations
+        self.max_inner_iterations = inner_max_iterations
+
+    def get_solver_step_iterated_number(self) -> tuple[int, int]:
+        """
+        Get the number of iterations performed in the last call to _step.
+        """
+        if self.solver_status is not None:
+            return self.solver_status.num_outer_iterations, \
+                self.solver_status.num_inner_iterations
+        else:
+            return 0, 0
 
     def _step(self, u: np.ndarray):
         """
