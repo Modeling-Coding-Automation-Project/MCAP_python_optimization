@@ -490,7 +490,8 @@ class PANOC_Optimizer:
             np.minimum(x, self._u_max, out=x)
 
     def _estimate_local_lipschitz(self, u: np.ndarray) -> None:
-        """Estimate the local Lipschitz constant of the gradient at *u*.
+        """
+        Estimate the local Lipschitz constant of the gradient at *u*.
 
         Also fills ``cache.gradient_u`` with grad f(u).
 
@@ -515,76 +516,82 @@ class PANOC_Optimizer:
         c.lipschitz_constant = np.linalg.norm(
             grad_perturbed - c.gradient_u) / norm_h
 
-    # ==================================================================
-    #  Core sub-steps
-    # ==================================================================
     def _compute_fpr(self, u: np.ndarray) -> None:
-        """Compute the fixed-point residual: gamma_fpr = u - u_half_step."""
-        c = self._cache
-        np.subtract(u, c.u_half_step, out=c.gamma_fpr)
-        c.norm_gamma_fpr = np.linalg.norm(c.gamma_fpr)
+        """
+        Compute the fixed-point residual: gamma_fpr = u - u_half_step.
+        """
+        self._cache.gamma_fpr[:] = u - self._cache.u_half_step
+        self._cache.norm_gamma_fpr = np.linalg.norm(self._cache.gamma_fpr)
 
     def _gradient_step(self, u: np.ndarray) -> None:
-        """gradient_step = u - gamma * gradient_u."""
-        c = self._cache
-        np.subtract(u, c.gamma * c.gradient_u, out=c.gradient_step)
+        """
+        gradient_step = u - gamma * gradient_u.
+        """
+        self._cache.gradient_step[:] = u - \
+            self._cache.gamma * self._cache.gradient_u
 
     def _gradient_step_uplus(self) -> None:
-        """gradient_step = u_plus - gamma * gradient_u."""
-        c = self._cache
-        np.subtract(c.u_plus, c.gamma * c.gradient_u, out=c.gradient_step)
+        """
+        gradient_step = u_plus - gamma * gradient_u.
+        """
+        self._cache.gradient_step[:] = self._cache.u_plus - \
+            self._cache.gamma * self._cache.gradient_u
 
     def _half_step(self) -> None:
-        """u_half_step = project(gradient_step) onto the constraint set."""
-        c = self._cache
-        c.u_half_step[:] = c.gradient_step
-        self._project(c.u_half_step)
+        """
+        u_half_step = project(gradient_step) onto the constraint set.
+        """
+        self._cache.u_half_step[:] = self._cache.gradient_step
+        self._project(self._cache.u_half_step)
 
     def _lbfgs_direction(self, u: np.ndarray) -> None:
-        """Update L-BFGS buffer and compute direction = H * gamma_fpr."""
-        c = self._cache
-        c.lbfgs.update_hessian(c.gamma_fpr, u)
-        if c.iteration > 0:
-            c.direction_lbfgs[:] = c.gamma_fpr
-            c.lbfgs.apply_hessian(c.direction_lbfgs)
-
-    # ------------------------------------------------------------------
-    #  Lipschitz constant update
-    # ------------------------------------------------------------------
-    def _lipschitz_check_rhs(self) -> float:
-        """RHS of the Lipschitz update condition.
-
-        rhs = f(u) + eps*|f(u)| - <grad, gamma_fpr> + (L_coeff / (2*gamma)) * ||gamma_fpr||^2
         """
-        c = self._cache
-        inner = float(np.dot(c.gradient_u, c.gamma_fpr))
-        return (c.cost_value
-                + LIPSCHITZ_UPDATE_EPSILON_DEFAULT * abs(c.cost_value)
+        Update L-BFGS buffer and compute direction = H * gamma_fpr.
+        """
+        self._cache.lbfgs.update_hessian(self._cache.gamma_fpr, u)
+        if self._cache.iteration > 0:
+            self._cache.direction_lbfgs[:] = self._cache.gamma_fpr
+            self._cache.lbfgs.apply_hessian(self._cache.direction_lbfgs)
+
+    def _lipschitz_check_rhs(self) -> float:
+        """
+        RHS of the Lipschitz update condition.
+
+        rhs = f(u) + eps*|f(u)| - <grad, gamma_fpr> +
+          (L_coeff / (2*gamma)) * ||gamma_fpr||^2
+        """
+        inner = float(np.dot(self._cache.gradient_u, self._cache.gamma_fpr))
+        return (self._cache.cost_value
+                + LIPSCHITZ_UPDATE_EPSILON_DEFAULT *
+                abs(self._cache.cost_value)
                 - inner
-                + (GAMMA_L_COEFFICIENT_DEFAULT / (2.0 * c.gamma)) * c.norm_gamma_fpr ** 2)
+                + (GAMMA_L_COEFFICIENT_DEFAULT / (2.0 * self._cache.gamma)) *
+                self._cache.norm_gamma_fpr ** 2)
 
     def _update_lipschitz_constant(self, u: np.ndarray) -> None:
-        """Update the Lipschitz constant estimate (and gamma, sigma accordingly)."""
-        c = self._cache
+        """
+        Update the Lipschitz constant estimate (and gamma, sigma accordingly).
+        """
 
-        cost_half = self._cost_func(c.u_half_step)
-        c.cost_value = self._cost_func(u)
+        cost_half = self._cost_func(self._cache.u_half_step)
+        self._cache.cost_value = self._cost_func(u)
 
         it_lip = 0
         while (cost_half > self._lipschitz_check_rhs()
                and it_lip < MAX_LIPSCHITZ_UPDATE_ITERATIONS_DEFAULT
-               and c.lipschitz_constant < MAX_LIPSCHITZ_CONSTANT_DEFAULT):
-            c.lbfgs.reset()
-            c.lipschitz_constant *= 2.0
-            c.gamma /= 2.0
+               and self._cache.lipschitz_constant < MAX_LIPSCHITZ_CONSTANT_DEFAULT):
+            self._cache.lbfgs.reset()
+            self._cache.lipschitz_constant *= 2.0
+            self._cache.gamma /= 2.0
 
             self._gradient_step(u)
             self._half_step()
-            cost_half = self._cost_func(c.u_half_step)
+            cost_half = self._cost_func(self._cache.u_half_step)
             self._compute_fpr(u)
             it_lip += 1
 
-        c.sigma = (1.0 - GAMMA_L_COEFFICIENT_DEFAULT) / (4.0 * c.gamma)
+        self._cache.sigma = (
+            1.0 - GAMMA_L_COEFFICIENT_DEFAULT) / (4.0 * self._cache.gamma)
 
     # ------------------------------------------------------------------
     #  u_plus computation
