@@ -194,11 +194,10 @@ class L_BFGS_Buffer:
             return True
 
         # Compute s = state - old_state, y = g - old_g in the temporary slot
-        slot_index = self._m  # index of the temporary slot
-        self._s[slot_index] = state - self._old_state
-        self._y[slot_index] = g - self._old_g
+        self._s[self._m] = state - self._old_state
+        self._y[self._m] = g - self._old_g
 
-        if not self._new_s_and_y_valid(g, slot_index):
+        if not self._new_s_and_y_valid(g, self._m):
             return False
 
         # Save current as "old"
