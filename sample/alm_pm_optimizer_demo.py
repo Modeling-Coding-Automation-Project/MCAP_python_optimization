@@ -44,26 +44,27 @@ b = 100.0
 
 def cost(u: np.ndarray) -> float:
     """Rosenbrock cost function."""
-    return (a - u[0]) ** 2 + b * (u[1] - u[0] ** 2) ** 2
+    return (a - u[0, 0]) ** 2 + b * (u[1, 0] - u[0, 0] ** 2) ** 2
 
 
 def gradient(u: np.ndarray) -> np.ndarray:
     """Gradient of the Rosenbrock cost function."""
-    g = np.zeros(2)
-    g[0] = -2.0 * (a - u[0]) - 4.0 * b * u[0] * (u[1] - u[0] ** 2)
-    g[1] = 2.0 * b * (u[1] - u[0] ** 2)
+    g = np.zeros((2, 1))
+    g[0, 0] = -2.0 * (a - u[0, 0]) - 4.0 * b * \
+        u[0, 0] * (u[1, 0] - u[0, 0] ** 2)
+    g[1, 0] = 2.0 * b * (u[1, 0] - u[0, 0] ** 2)
     return g
 
 
 # ---- ALM constraint: F1(u) = u0 + u1,  C = (-inf, 1.0] ----
 def F1(u: np.ndarray) -> np.ndarray:
-    """Mapping F1: output = u0 + u1 (scalar -> 1D array)."""
-    return np.array([u[0] + u[1]])
+    """Mapping F1: output = u0 + u1 (scalar -> (1,1) array)."""
+    return np.array([[u[0, 0] + u[1, 0]]])
 
 
 def JF1_trans(u: np.ndarray, d: np.ndarray) -> np.ndarray:
-    """JF1(u)^T * d.  Since JF1 = [1, 1], this is [d[0], d[0]]."""
-    return np.array([d[0], d[0]])
+    """JF1(u)^T * d.  Since JF1 = [1, 1], this is [[d[0,0]], [d[0,0]]]."""
+    return np.array([[d[0, 0]], [d[0, 0]]])
 
 
 def project_C(x: np.ndarray) -> None:
@@ -72,8 +73,8 @@ def project_C(x: np.ndarray) -> None:
 
 
 # Box constraints on u
-u_min = np.array([-1.5, -1.5])
-u_max = np.array([1.5, 1.5])
+u_min = np.array([[-1.5], [-1.5]])
+u_max = np.array([[1.5], [1.5]])
 
 # Set Y for Lagrange multipliers: ball of large radius (practically unbounded)
 project_Y_operator = BallProjectionOperator(center=None, radius=1e6)
@@ -122,10 +123,10 @@ optimizer = ALM_PM_Optimizer(
 # ============================================================
 # 3. Solve
 # ============================================================
-u0 = np.array([0.0, 0.0])  # initial guess
-print(f"Initial guess   : u = {u0}")
+u0 = np.array([[0.0], [0.0]])  # initial guess
+print(f"Initial guess   : u = {u0.flatten()}")
 print(f"Initial cost    : f(u) = {cost(u0):.6f}")
-print(f"Initial F1(u)   : {F1(u0)[0]:.6f}  (constraint: <= 1.0)")
+print(f"Initial F1(u)   : {F1(u0)[0, 0]:.6f}  (constraint: <= 1.0)")
 print()
 
 status = optimizer.solve(u0)
@@ -138,18 +139,18 @@ print("--- ALM/PM result ---")
 print(f"Exit status     : {status.exit_status.name}")
 print(f"Outer iterations: {status.num_outer_iterations}")
 print(f"Inner iterations: {status.num_inner_iterations}  (total PANOC steps)")
-print(f"Solution        : u = [{u0[0]:.8f}, {u0[1]:.8f}]")
+print(f"Solution        : u = [{u0[0, 0]:.8f}, {u0[1, 0]:.8f}]")
 print(f"Cost at sol.    : f(u) = {status.cost:.8f}")
-print(f"F1(u)           : {F1(u0)[0]:.8f}  (constraint: <= 1.0)")
+print(f"F1(u)           : {F1(u0)[0, 0]:.8f}  (constraint: <= 1.0)")
 print(f"||FPR|| (last)  : {status.last_problem_norm_fpr:.2e}")
 print(f"Penalty (final) : c = {status.penalty:.1f}")
 print(f"||delta y||     : {status.delta_y_norm:.2e}")
-print(f"Lagrange mult.  : y = {status.lagrange_multipliers}")
+print(f"Lagrange mult.  : y = {status.lagrange_multipliers.flatten()}")
 print(f"Converged       : {status.has_converged()}")
 print()
 
 # Verify feasibility
-f1_val = F1(u0)[0]
+f1_val = F1(u0)[0, 0]
 assert np.all(u0 >= u_min - 1e-6) and np.all(u0 <= u_max + 1e-6), \
     "Solution violates box constraints!"
 assert f1_val <= 1.0 + 1e-4, \

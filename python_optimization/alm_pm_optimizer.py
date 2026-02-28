@@ -226,23 +226,23 @@ class ALM_Cache:
 
         # Lagrange multipliers (next iterate, y^+)
         self.y_plus: Optional[np.ndarray] = (
-            np.zeros(n1) if n1 > 0 else None
+            np.zeros((n1, 1)) if n1 > 0 else None
         )
 
         # Parameter vector xi = (c, y) element of R^{1+n1}
-        # xi[0] = c (penalty parameter), xi[1:] = y (Lagrange multipliers)
+        # xi[0, 0] = c (penalty parameter), xi[1:] = y (Lagrange multipliers)
         if n1 + n2 > 0:
-            self.xi: Optional[np.ndarray] = np.zeros(1 + n1)
-            self.xi[0] = DEFAULT_INITIAL_PENALTY
+            self.xi: Optional[np.ndarray] = np.zeros((1 + n1, 1))
+            self.xi[0, 0] = DEFAULT_INITIAL_PENALTY
         else:
             self.xi = None
 
         # Auxiliary working vectors
         self.w_alm_aux: Optional[np.ndarray] = (
-            np.zeros(n1) if n1 > 0 else None
+            np.zeros((n1, 1)) if n1 > 0 else None
         )
         self.w_pm: Optional[np.ndarray] = (
-            np.zeros(n2) if n2 > 0 else None
+            np.zeros((n2, 1)) if n2 > 0 else None
         )
 
         # Infeasibility measures
@@ -368,7 +368,7 @@ class ALM_Factory:
 
         # ALM term: (c/2) * dist^2_C(F1(u) + y/c_bar)
         if self._mapping_f1 is not None and self._set_c_project is not None:
-            c = xi[0]
+            c = xi[0, 0]
             y = xi[1:]
             c_bar = max(c, 1.0)
 
@@ -382,14 +382,14 @@ class ALM_Factory:
 
             # dist^2_C(t) = ||t - s||^2
             diff = t - s
-            dist_sq = float(np.dot(diff, diff))
+            dist_sq = (diff.T @ diff).item()
             cost += 0.5 * c * dist_sq
 
         # PM term: (c/2) * ||F2(u)||^2
         if self._mapping_f2 is not None:
-            c = xi[0]
+            c = xi[0, 0]
             f2_u = self._mapping_f2(u)
-            cost += 0.5 * c * float(np.dot(f2_u, f2_u))
+            cost += 0.5 * c * (f2_u.T @ f2_u).item()
 
         return cost
 
@@ -407,7 +407,7 @@ class ALM_Factory:
         Returns
         -------
         np.ndarray
-            Gradient Nabla psi(u; xi) of shape (n_u,).
+            Gradient Nabla psi(u; xi) of shape (n_u, 1).
         """
         grad = self._df(u).copy()
 
@@ -415,7 +415,7 @@ class ALM_Factory:
         if (self._mapping_f1 is not None
                 and self._jacobian_f1_trans is not None
                 and self._set_c_project is not None):
-            c = xi[0]
+            c = xi[0, 0]
             y = xi[1:]
 
             # t = F1(u) + y/c  (note: uses c, not c_bar)
@@ -436,7 +436,7 @@ class ALM_Factory:
         # PM gradient: c · JF2(u)^T · F2(u)
         if (self._mapping_f2 is not None
                 and self._jacobian_f2_trans is not None):
-            c = xi[0]
+            c = xi[0, 0]
             f2_u = self._mapping_f2(u)
             jf2t_f2u = self._jacobian_f2_trans(u, f2_u)
             grad += c * jf2t_f2u
@@ -604,7 +604,7 @@ class ALM_PM_Optimizer:
             assert initial_penalty > SMALL_EPSILON, \
                 "initial_penalty must be positive"
             if self._cache.xi is not None:
-                self._cache.xi[0] = initial_penalty
+                self._cache.xi[0, 0] = initial_penalty
 
         # Set initial Lagrange multipliers
         if initial_y is not None:
@@ -649,7 +649,7 @@ class ALM_PM_Optimizer:
             exit_status = ExitStatus.NOT_CONVERGED_ITERATIONS
 
         # Extract final penalty parameter
-        c = self._cache.xi[0] if self._cache.xi is not None else 0.0
+        c = self._cache.xi[0, 0] if self._cache.xi is not None else 0.0
 
         # Compute original cost at solution (penalty terms excluded)
         cost_value = self._compute_cost_at_solution(u)
@@ -772,7 +772,7 @@ class ALM_PM_Optimizer:
         if self._cache.xi is None or self._cache.y_plus is None:
             return
 
-        c = self._cache.xi[0]
+        c = self._cache.xi[0, 0]
         y = self._cache.xi[1:]
 
         # Step 1: w = F1(u)
@@ -825,7 +825,7 @@ class ALM_PM_Optimizer:
         # Criterion 1: ||delta y|| <= c·delta
         if problem.n1 > 0:
             if cache.xi is not None:
-                c = cache.xi[0]
+                c = cache.xi[0, 0]
                 criterion_1 = (
                     cache.iteration > 0
                     and cache.delta_y_norm_plus
@@ -893,7 +893,7 @@ class ALM_PM_Optimizer:
         Multiply penalty parameter c by penalty_update_factor.
         """
         if self._cache.xi is not None:
-            self._cache.xi[0] *= self.penalty_update_factor
+            self._cache.xi[0, 0] *= self.penalty_update_factor
 
     def _update_inner_tolerance(self) -> None:
         """
@@ -933,10 +933,10 @@ class ALM_PM_Optimizer:
         parametric cost is basically ALM_Factory.psi()
         """
         if self._cache.xi is not None:
-            saved_c = self._cache.xi[0]
-            self._cache.xi[0] = 0.0
+            saved_c = self._cache.xi[0, 0]
+            self._cache.xi[0, 0] = 0.0
             cost = self._problem.parametric_cost(u, self._cache.xi)
-            self._cache.xi[0] = saved_c
+            self._cache.xi[0, 0] = saved_c
         else:
             cost = self._problem.parametric_cost(u)
         return cost
