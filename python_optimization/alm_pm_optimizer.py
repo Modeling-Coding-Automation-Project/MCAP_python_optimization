@@ -1,11 +1,11 @@
 """
-File: alm_optimizer.py
+File: ALM_PM_Optimizer.py
 
 Description: This module implements the ALM/PM (Augmented Lagrangian Method /
 Penalty Method) algorithm for solving constrained nonlinear optimization problems.
 
 The implementation is based on the Rust optimization-engine library
-(src/alm/alm_optimizer.rs and related files) and adapted for Python/NumPy.
+(src/alm/ALM_PM_Optimizer.rs and related files) and adapted for Python/NumPy.
 It uses the PANOC solver (panoc.py) as the inner solver.
 
 ALM/PM solves problems of the form:
@@ -39,8 +39,8 @@ Module structure:
     - ALM_Factory:       Builds psi(u; xi) and Nabla psi(u; xi) from raw problem data
     - ALM_Problem:       Bundles all problem data for the ALM optimizer
     - ALM_Cache:         Pre-allocated working memory for the algorithm
-    - ALM_Optimizer:     Main ALM/PM solver (outer loop with PANOC inner solver)
-    - ALM_SolverStatus:  Result returned by ALM_Optimizer.solve()
+    - ALM_PM_Optimizer:     Main ALM/PM solver (outer loop with PANOC inner solver)
+    - ALM_SolverStatus:  Result returned by ALM_PM_Optimizer.solve()
     - Utility classes:   BoxProjectionOperator, BallProjectionOperator
 
 References:
@@ -157,7 +157,7 @@ class BallProjectionOperator:
 @dataclass
 class ALM_SolverStatus:
     """
-    Result returned by :meth:`ALM_Optimizer.solve`.
+    Result returned by :meth:`ALM_PM_Optimizer.solve`.
 
     Attributes
     ----------
@@ -448,7 +448,7 @@ class ALM_Problem:
     """
     Problem definition for ALM/PM optimization.
 
-    Bundles all data required by :class:`ALM_Optimizer`: the parametric
+    Bundles all data required by :class:`ALM_PM_Optimizer`: the parametric
     augmented cost and its gradient (typically built by :class:`ALM_Factory`),
     box constraints on the decision variable, constraint mappings, and
     projection operators.
@@ -516,7 +516,7 @@ class ALM_Problem:
         self.n2 = n2
 
 
-class ALM_Optimizer:
+class ALM_PM_Optimizer:
     """
     ALM/PM solver for constrained nonlinear optimization.
 

@@ -1,5 +1,5 @@
 """
-File: alm_optimizer_demo.py
+File: ALM_PM_Optimizer_demo.py
 
 This script demonstrates the ALM/PM optimizer on a simple 2D problem
 with an additional output (inequality) constraint handled via ALM.
@@ -25,11 +25,11 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 import numpy as np
 
 from python_optimization.panoc import PANOC_Cache
-from python_optimization.alm_optimizer import (
+from python_optimization.alm_pm_optimizer import (
     ALM_Factory,
     ALM_Problem,
     ALM_Cache,
-    ALM_Optimizer,
+    ALM_PM_Optimizer,
     BoxProjectionOperator,
     BallProjectionOperator,
 )
@@ -109,7 +109,7 @@ panoc_cache = PANOC_Cache(problem_size=n, tolerance=1e-6, lbfgs_memory=5)
 alm_cache = ALM_Cache(panoc_cache, n1=1)
 
 # Optimizer
-optimizer = ALM_Optimizer(
+optimizer = ALM_PM_Optimizer(
     alm_cache=alm_cache,
     alm_problem=problem,
     epsilon_tolerance=1e-5,
