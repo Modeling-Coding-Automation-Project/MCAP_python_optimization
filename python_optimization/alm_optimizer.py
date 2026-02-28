@@ -17,16 +17,16 @@ ALM/PM solves problems of the form:
          F2(u) = 0        (PM-type equality constraints, optional)
 
 For nonlinear MPC applications, the typical constraints are:
-    - u_min <= u <= u_max  (input box constraints → set U for PANOC)
-    - y_min <= Y(u) <= y_max  (output box constraints → F1(u) = Y(u), C = [y_min, y_max])
+    - u_min <= u <= u_max  (input box constraints -> set U for PANOC)
+    - y_min <= Y(u) <= y_max  (output box constraints -> F1(u) = Y(u), C = [y_min, y_max])
 
 Algorithm overview (outer loop):
 1. y <- Pi_Y(y)                           (project Lagrange multipliers onto set Y)
 2. u <- argmin_{uelement ofU} psi(u; xi)             (solve inner problem via PANOC, xi = (c, y))
 3. y^+ <- y + c[F1(u) - Pi_C(F1(u) + y/c)] (update Lagrange multipliers)
 4. z^+ <- ||y^+ - y||, t^+ <- ||F2(u)||     (compute infeasibility measures)
-5. If z^+ ≤ cdelta and t^+ ≤ delta and epsilon_nu ≤ epsilon    → converged, return (u, y^+)
-6. Else if no sufficient decrease         → c <- rho·c  (increase penalty)
+5. If z^+ <= cdelta and t^+ <= delta and epsilon_nu <= epsilon    -> converged, return (u, y^+)
+6. Else if no sufficient decrease         -> c <- rho·c  (increase penalty)
 7. epsilon <- max(epsilon, beta·epsilon)                      (shrink inner tolerance)
 
 The augmented cost function is:
@@ -541,7 +541,7 @@ class ALM_Optimizer:
         Factor rho > 1 to increase penalty parameter c.
     epsilon_update_factor : float
         Factor beta element of (0, 1) to decrease inner tolerance.
-    sufficient_decrease_coeff : float
+    sufficient_decrease_coefficient : float
         Coefficient θ element of (0, 1) for sufficient decrease check.
     initial_inner_tolerance : float
         Initial inner tolerance epsilon₀ (must be >= epsilon_tolerance).
@@ -563,7 +563,7 @@ class ALM_Optimizer:
         delta_tolerance: float = DEFAULT_DELTA_TOLERANCE,
         penalty_update_factor: float = DEFAULT_PENALTY_UPDATE_FACTOR,
         epsilon_update_factor: float = DEFAULT_EPSILON_UPDATE_FACTOR,
-        sufficient_decrease_coeff: float = DEFAULT_INFEASIBLE_SUFFICIENT_DECREASE_FACTOR,
+        sufficient_decrease_coefficient: float = DEFAULT_INFEASIBLE_SUFFICIENT_DECREASE_FACTOR,
         initial_inner_tolerance: float = DEFAULT_INITIAL_TOLERANCE,
         initial_penalty: Optional[float] = None,
         initial_y: Optional[np.ndarray] = None,
@@ -577,8 +577,8 @@ class ALM_Optimizer:
             "penalty_update_factor must be > 1"
         assert SMALL_EPSILON < epsilon_update_factor < 1.0 - SMALL_EPSILON, \
             "epsilon_update_factor must be in (0, 1)"
-        assert SMALL_EPSILON < sufficient_decrease_coeff < 1.0 - SMALL_EPSILON, \
-            "sufficient_decrease_coeff must be in (0, 1)"
+        assert SMALL_EPSILON < sufficient_decrease_coefficient < 1.0 - SMALL_EPSILON, \
+            "sufficient_decrease_coefficient must be in (0, 1)"
         assert initial_inner_tolerance >= epsilon_tolerance, \
             "initial_inner_tolerance must be >= epsilon_tolerance"
 
@@ -590,7 +590,7 @@ class ALM_Optimizer:
         self.delta_tolerance = delta_tolerance
         self.penalty_update_factor = penalty_update_factor
         self.epsilon_update_factor = epsilon_update_factor
-        self.sufficient_decrease_coeff = sufficient_decrease_coeff
+        self.sufficient_decrease_coefficient = sufficient_decrease_coefficient
         self.initial_inner_tolerance = initial_inner_tolerance
         self.max_duration = max_duration
 
@@ -785,7 +785,9 @@ class ALM_Optimizer:
         self._cache.y_plus[:] = y + c * (w - self._cache.y_plus)
 
     def _compute_alm_infeasibility(self) -> None:
-        """Compute ALM infeasibility: ||y^+ - y||."""
+        """
+        Compute ALM infeasibility: ||y^+ - y||.
+        """
         if self._cache.y_plus is not None and self._cache.xi is not None:
             y = self._cache.xi[1:]
             self._cache.delta_y_norm_plus = float(
@@ -793,7 +795,9 @@ class ALM_Optimizer:
             )
 
     def _compute_pm_infeasibility(self, u: np.ndarray) -> None:
-        """Compute PM infeasibility: ||F2(u)||."""
+        """
+        Compute PM infeasibility: ||F2(u)||.
+        """
         if (self._problem.mapping_f2 is not None
                 and self._cache.w_pm is not None):
             self._cache.w_pm[:] = self._problem.mapping_f2(u)
@@ -806,14 +810,14 @@ class ALM_Optimizer:
         Check if (epsilon, delta)-AKKT conditions are satisfied.
 
         Three criteria must hold simultaneously:
-            1. ||deltay|| ≤ c·delta   (or no ALM constraints)
-            2. ||F2(u)|| ≤ delta   (or no PM constraints)
-            3. epsilon_nu ≤ epsilon         (inner tolerance has reached target)
+            1. ||delta y|| <= c·delta   (or no ALM constraints)
+            2. ||F2(u)|| <= delta   (or no PM constraints)
+            3. epsilon_nu <= epsilon         (inner tolerance has reached target)
         """
         cache = self._cache
         problem = self._problem
 
-        # Criterion 1: ||deltay|| ≤ c·delta
+        # Criterion 1: ||delta y|| <= c·delta
         if problem.n1 > 0:
             if cache.xi is not None:
                 c = cache.xi[0]
@@ -827,14 +831,14 @@ class ALM_Optimizer:
         else:
             criterion_1 = True
 
-        # Criterion 2: ||F2(u)|| ≤ delta
+        # Criterion 2: ||F2(u)|| <= delta
         criterion_2 = (
             problem.n2 == 0
             or cache.f2_norm_plus
             <= self.delta_tolerance + SMALL_EPSILON
         )
 
-        # Criterion 3: current inner tolerance ≤ target epsilon
+        # Criterion 3: current inner tolerance <= target epsilon
         criterion_3 = (
             cache.panoc_cache.tolerance
             <= self.epsilon_tolerance + SMALL_EPSILON
@@ -861,12 +865,12 @@ class ALM_Optimizer:
 
         criterion_alm = (
             cache.delta_y_norm_plus
-            <= self.sufficient_decrease_coeff * cache.delta_y_norm
+            <= self.sufficient_decrease_coefficient * cache.delta_y_norm
             + SMALL_EPSILON
         )
         criterion_pm = (
             cache.f2_norm_plus
-            <= self.sufficient_decrease_coeff * cache.f2_norm
+            <= self.sufficient_decrease_coefficient * cache.f2_norm
             + SMALL_EPSILON
         )
 
@@ -880,12 +884,16 @@ class ALM_Optimizer:
         return False
 
     def _update_penalty_parameter(self) -> None:
-        """Multiply penalty parameter c by penalty_update_factor."""
+        """
+        Multiply penalty parameter c by penalty_update_factor.
+        """
         if self._cache.xi is not None:
             self._cache.xi[0] *= self.penalty_update_factor
 
     def _update_inner_tolerance(self) -> None:
-        """Shrink inner tolerance: epsilon <- max(epsilon, beta · epsilon)."""
+        """
+        Shrink inner tolerance: epsilon <- max(epsilon, beta · epsilon).
+        """
         current = self._cache.panoc_cache.tolerance
         self._cache.panoc_cache.tolerance = max(
             current * self.epsilon_update_factor,
@@ -895,7 +903,7 @@ class ALM_Optimizer:
     def _final_cache_update(self) -> None:
         """
         End-of-iteration bookkeeping: increment counter, shift
-        infeasibility measures, copy y^+ → y, and reset PANOC cache.
+        infeasibility measures, copy y^+ -> y, and reset PANOC cache.
         """
         cache = self._cache
         cache.iteration += 1
