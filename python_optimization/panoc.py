@@ -45,35 +45,34 @@ import time
 # Constants (matching optimization-engine defaults)
 # ============================================================================
 # Minimum estimated Lipschitz constant (initial estimate floor)
-_MIN_L_ESTIMATE: float = 1e-10
-# gamma = _GAMMA_L_COEFF / L
-_GAMMA_L_COEFF: float = 0.95
+MIN_L_ESTIMATE_DEFAULT: float = 1e-10
+# gamma = GAMMA_L_COEFFICIENT_DEFAULT / L
+GAMMA_L_COEFFICIENT_DEFAULT: float = 0.95
 # Delta for Lipschitz estimation perturbation
-_DELTA_LIPSCHITZ: float = 1e-12
+DELTA_LIPSCHITZ_DEFAULT: float = 1e-12
 # Epsilon for Lipschitz estimation perturbation
-_EPSILON_LIPSCHITZ: float = 1e-6
+EPSILON_LIPSCHITZ_DEFAULT: float = 1e-6
 # Safety parameter for strict inequality in Lipschitz update
-_LIPSCHITZ_UPDATE_EPSILON: float = 1e-6
+LIPSCHITZ_UPDATE_EPSILON_DEFAULT: float = 1e-6
 # Maximum iterations for updating the Lipschitz constant
-_MAX_LIPSCHITZ_UPDATE_ITERATIONS: int = 10
+MAX_LIPSCHITZ_UPDATE_ITERATIONS_DEFAULT: int = 10
 # Maximum possible Lipschitz constant
-_MAX_LIPSCHITZ_CONSTANT: float = 1e9
+MAX_LIPSCHITZ_CONSTANT_DEFAULT: float = 1e9
 # Maximum number of line-search iterations
-_MAX_LINESEARCH_ITERATIONS: int = 10
+MAX_LINESEARCH_ITERATIONS_DEFAULT: int = 10
 # Default maximum PANOC iterations
-_MAX_ITER_DEFAULT: int = 100
+MAX_ITER_DEFAULT_DEFAULT: int = 100
 
 # L-BFGS defaults
-_DEFAULT_SY_EPSILON: float = 1e-10
-_DEFAULT_CBFGS_EPSILON: float = 1e-8
-_DEFAULT_CBFGS_ALPHA: float = 1.0
+SY_EPSILON_DEFAULT: float = 1e-10
+CBFGS_EPSILON_DEFAULT: float = 1e-8
+CBFGS_ALPHA_DEFAULT: float = 1.0
 
 
-# ============================================================================
-# Exit status
-# ============================================================================
 class ExitStatus(Enum):
-    """Exit status of the PANOC solver."""
+    """
+    Exit status of the PANOC solver.
+    """
     CONVERGED = auto()
     NOT_CONVERGED_ITERATIONS = auto()
     NOT_CONVERGED_OUT_OF_TIME = auto()
@@ -138,9 +137,9 @@ class LBFGSBuffer:
         self,
         problem_size: int,
         buffer_size: int,
-        sy_epsilon: float = _DEFAULT_SY_EPSILON,
-        cbfgs_alpha: float = _DEFAULT_CBFGS_ALPHA,
-        cbfgs_epsilon: float = _DEFAULT_CBFGS_EPSILON,
+        sy_epsilon: float = SY_EPSILON_DEFAULT,
+        cbfgs_alpha: float = CBFGS_ALPHA_DEFAULT,
+        cbfgs_epsilon: float = CBFGS_EPSILON_DEFAULT,
     ):
         assert problem_size > 0
         assert buffer_size > 0
@@ -297,9 +296,9 @@ class PANOCCache:
         # L-BFGS buffer
         self.lbfgs = LBFGSBuffer(
             n, lbfgs_memory,
-            sy_epsilon=_DEFAULT_SY_EPSILON,
-            cbfgs_alpha=_DEFAULT_CBFGS_ALPHA,
-            cbfgs_epsilon=_DEFAULT_CBFGS_EPSILON,
+            sy_epsilon=SY_EPSILON_DEFAULT,
+            cbfgs_alpha=CBFGS_ALPHA_DEFAULT,
+            cbfgs_epsilon=CBFGS_EPSILON_DEFAULT,
         )
 
         # Working arrays
@@ -398,7 +397,7 @@ class PANOCOptimizer:
         cache: PANOCCache,
         u_min: Optional[np.ndarray] = None,
         u_max: Optional[np.ndarray] = None,
-        max_iter: int = _MAX_ITER_DEFAULT,
+        max_iter: int = MAX_ITER_DEFAULT_DEFAULT,
         max_duration: Optional[float] = None,
         tolerance: Optional[float] = None,
     ):
@@ -441,7 +440,8 @@ class PANOCOptimizer:
         # --- Initialisation (equivalent to PANOCEngine::init) ---
         c.cost_value = self._cost_func(u)
         self._estimate_local_lipschitz(u)  # also fills c.gradient_u
-        c.gamma = _GAMMA_L_COEFF / max(c.lipschitz_constant, _MIN_L_ESTIMATE)
+        c.gamma = _GAMMA_L_COEFF / \
+            max(c.lipschitz_constant, MIN_L_ESTIMATE_DEFAULT)
         c.sigma = (1.0 - _GAMMA_L_COEFF) / (4.0 * c.gamma)
         self._gradient_step(u)
         self._half_step()
@@ -528,8 +528,8 @@ class PANOCOptimizer:
         where h_i = max(delta, epsilon * u_i).
         """
         c = self._cache
-        delta = _DELTA_LIPSCHITZ
-        epsilon = _EPSILON_LIPSCHITZ
+        delta = DELTA_LIPSCHITZ_DEFAULT
+        epsilon = EPSILON_LIPSCHITZ_DEFAULT
 
         # Evaluate gradient at u
         c.gradient_u[:] = self._gradient_func(u)
@@ -589,7 +589,7 @@ class PANOCOptimizer:
         c = self._cache
         inner = float(np.dot(c.gradient_u, c.gamma_fpr))
         return (c.cost_value
-                + _LIPSCHITZ_UPDATE_EPSILON * abs(c.cost_value)
+                + LIPSCHITZ_UPDATE_EPSILON_DEFAULT * abs(c.cost_value)
                 - inner
                 + (_GAMMA_L_COEFF / (2.0 * c.gamma)) * c.norm_gamma_fpr ** 2)
 
@@ -602,8 +602,8 @@ class PANOCOptimizer:
 
         it_lip = 0
         while (cost_half > self._lipschitz_check_rhs()
-               and it_lip < _MAX_LIPSCHITZ_UPDATE_ITERATIONS
-               and c.lipschitz_constant < _MAX_LIPSCHITZ_CONSTANT):
+               and it_lip < MAX_LIPSCHITZ_UPDATE_ITERATIONS_DEFAULT
+               and c.lipschitz_constant < MAX_LIPSCHITZ_CONSTANT_DEFAULT):
             c.lbfgs.reset()
             c.lipschitz_constant *= 2.0
             c.gamma /= 2.0
@@ -682,11 +682,11 @@ class PANOCOptimizer:
         self._compute_rhs_ls()
         c.tau = 1.0
         num_ls = 0
-        while self._line_search_condition(u) and num_ls < _MAX_LINESEARCH_ITERATIONS:
+        while self._line_search_condition(u) and num_ls < MAX_LINESEARCH_ITERATIONS_DEFAULT:
             c.tau /= 2.0
             num_ls += 1
 
-        if num_ls == _MAX_LINESEARCH_ITERATIONS:
+        if num_ls == MAX_LINESEARCH_ITERATIONS_DEFAULT:
             # Fall back to projected gradient step
             c.tau = 0.0
             u[:] = c.u_half_step
