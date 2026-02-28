@@ -563,9 +563,9 @@ class OptimizationEngine_CostMatrices:
         before calling this method).
 
         Args:
-            u_flat (np.ndarray): Flattened control input sequence of shape (nu * Np,).
+            u_flat (np.ndarray): Flattened control input sequence of shape (nu * Np, 1).
         Returns:
-            np.ndarray: Gradient of shape (nu * Np,).
+            np.ndarray: Gradient of shape (nu * Np, 1).
         """
         U_horizon = u_flat.reshape((self.nu, self.Np))
         params = self.state_space_parameters
@@ -598,7 +598,7 @@ class OptimizationEngine_CostMatrices:
                               Cx_k.T @ (self.Qy @ ek_y)) + \
                 A_k.T @ lam_next
 
-        return gradient.flatten()
+        return gradient.reshape((-1, 1))
 
     # ----------------------------------------------------------------
     # ALM output constraint mapping methods
@@ -614,15 +614,15 @@ class OptimizationEngine_CostMatrices:
         before calling this method).
 
         Args:
-            u_flat (np.ndarray): Flattened control input sequence of shape (nu * Np,).
+            u_flat (np.ndarray): Flattened control input sequence of shape (nu * Np, 1).
         Returns:
-            np.ndarray: Output trajectory flattened to shape (ny * (Np + 1),).
+            np.ndarray: Output trajectory of shape (ny * (Np + 1), 1).
         """
         U_horizon = u_flat.reshape((self.nu, self.Np))
         X_horizon = self.simulate_trajectory(
             self.X_initial, U_horizon, self.state_space_parameters)
         Y_horizon = self._compute_Y_horizon(X_horizon)
-        return Y_horizon.flatten()
+        return Y_horizon.reshape((-1, 1))
 
     def compute_output_jacobian_trans(
             self,
@@ -644,10 +644,10 @@ class OptimizationEngine_CostMatrices:
         before calling this method).
 
         Args:
-            u_flat (np.ndarray): Flattened control input sequence of shape (nu * Np,).
-            d (np.ndarray): Dual vector of shape (ny * (Np + 1),).
+            u_flat (np.ndarray): Flattened control input sequence of shape (nu * Np, 1).
+            d (np.ndarray): Dual vector of shape (ny * (Np + 1), 1).
         Returns:
-            np.ndarray: JF1(u)^T @ d of shape (nu * Np,).
+            np.ndarray: JF1(u)^T @ d of shape (nu * Np, 1).
         """
         U_horizon = u_flat.reshape((self.nu, self.Np))
         D = d.reshape((self.ny, self.Np + 1))
@@ -674,4 +674,4 @@ class OptimizationEngine_CostMatrices:
                 X_horizon[:, k], params)
             mu = C_k.T @ D[:, k] + A_k.T @ mu
 
-        return result.flatten()
+        return result.reshape((-1, 1))
