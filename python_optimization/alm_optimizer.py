@@ -22,7 +22,7 @@ For nonlinear MPC applications, the typical constraints are:
 
 Algorithm overview (outer loop):
 1. y ← Π_Y(y)                           (project Lagrange multipliers onto set Y)
-2. u ← argmin_{u∈U} ψ(u; ξ)             (solve inner problem via PANOC, ξ = (c, y))
+2. u ← argmin_{u∈U} psi(u; xi)             (solve inner problem via PANOC, xi = (c, y))
 3. y⁺ ← y + c[F1(u) - Π_C(F1(u) + y/c)] (update Lagrange multipliers)
 4. z⁺ ← ||y⁺ - y||, t⁺ ← ||F2(u)||     (compute infeasibility measures)
 5. If z⁺ ≤ cδ and t⁺ ≤ δ and ε_nu ≤ ε    → converged, return (u, y⁺)
@@ -30,13 +30,13 @@ Algorithm overview (outer loop):
 7. ε̄ ← max(ε, β·ε̄)                      (shrink inner tolerance)
 
 The augmented cost function is:
-    ψ(u; ξ) = f(u) + (c/2)[dist²_C(F1(u) + y/c̄) + ||F2(u)||²]
-where c̄ = max(1, c), and its gradient is:
-    ∇ψ(u; ξ) = ∇f(u) + c·JF1(u)ᵀ[t(u) - Π_C(t(u))] + c·JF2(u)ᵀF2(u)
+    psi(u; xi) = f(u) + (c/2)[dist^2_C(F1(u) + y/c_bar) + ||F2(u)||^2]
+where c_bar = max(1, c), and its gradient is:
+    Nabla psi(u; xi) = Nabla f(u) + c·JF1(u)^T[t(u) - Π_C(t(u))] + c·JF2(u)^TF2(u)
 where t(u) = F1(u) + y/c.
 
 Module structure:
-    - ALM_Factory:       Builds ψ(u; ξ) and ∇ψ(u; ξ) from raw problem data
+    - ALM_Factory:       Builds psi(u; xi) and Nabla psi(u; xi) from raw problem data
     - ALM_Problem:       Bundles all problem data for the ALM optimizer
     - ALM_Cache:         Pre-allocated working memory for the algorithm
     - ALM_Optimizer:     Main ALM/PM solver (outer loop with PANOC inner solver)
@@ -150,9 +150,6 @@ def make_ball_projection(
     return project
 
 
-# ============================================================================
-# ALM Solver Status
-# ============================================================================
 @dataclass
 class ALM_SolverStatus:
     """
@@ -170,8 +167,6 @@ class ALM_SolverStatus:
         Norm of the fixed-point residual of the last inner problem.
     lagrange_multipliers : np.ndarray or None
         Final Lagrange multiplier vector y⁺ (None if no ALM constraints).
-    solve_time : float
-        Total solve time in seconds.
     penalty : float
         Final value of the penalty parameter c.
     delta_y_norm : float
@@ -186,20 +181,18 @@ class ALM_SolverStatus:
     num_inner_iterations: int
     last_problem_norm_fpr: float
     lagrange_multipliers: Optional[np.ndarray]
-    solve_time: float
     penalty: float
     delta_y_norm: float
     f2_norm: float
     cost: float
 
     def has_converged(self) -> bool:
-        """Return True if the solver converged to an (ε, δ)-AKKT point."""
+        """
+        Return True if the solver converged to an (ε, δ)-AKKT point.
+        """
         return self.exit_status == ExitStatus.CONVERGED
 
 
-# ============================================================================
-# ALM Cache
-# ============================================================================
 class ALM_Cache:
     """
     Pre-allocated working memory for the ALM/PM algorithm.
@@ -272,33 +265,30 @@ class ALM_Cache:
         self.inner_iteration_count = 0
 
 
-# ============================================================================
-# ALM Factory
-# ============================================================================
 class ALM_Factory:
     """
-    Constructs the augmented cost ψ(u; ξ) and its gradient ∇ψ(u; ξ)
+    Constructs the augmented cost psi(u; xi) and its gradient Nabla psi(u; xi)
     from the raw problem data.
 
-    Given f, ∇f, F1, JF1ᵀ·d, C (and optionally F2, JF2ᵀ·d), it builds:
+    Given f, Nabla f, F1, JF1^T·d, C (and optionally F2, JF2^T·d), it builds:
 
-        ψ(u; ξ) = f(u) + (c/2)[dist²_C(F1(u) + y/c̄) + ||F2(u)||²]
+        psi(u; xi) = f(u) + (c/2)[dist^2_C(F1(u) + y/c_bar) + ||F2(u)||^2]
 
-        ∇ψ(u; ξ) = ∇f(u) + c·JF1(u)ᵀ[t(u) - Π_C(t(u))] + c·JF2(u)ᵀF2(u)
+        Nabla psi(u; xi) = Nabla f(u) + c·JF1(u)^T[t(u) - Π_C(t(u))] + c·JF2(u)^TF2(u)
 
-    where c̄ = max(1, c), t(u) = F1(u) + y/c̄ for ψ and t(u) = F1(u) + y/c
-    for ∇ψ, and ξ = (c, y).
+    where c_bar = max(1, c), t(u) = F1(u) + y/c_bar for psi and t(u) = F1(u) + y/c
+    for Nabla psi, and xi = (c, y).
 
     Parameters
     ----------
     f : callable
         Cost function f(u) -> float.
     df : callable
-        Gradient ∇f(u) -> ndarray of shape (n_u,).
+        Gradient Nabla f(u) -> ndarray of shape (n_u,).
     mapping_f1 : callable or None
         F1(u) -> ndarray of shape (n1,).  Required if n1 > 0.
     jacobian_f1_trans : callable or None
-        JF1(u)ᵀd -> ndarray of shape (n_u,).
+        JF1(u)^Td -> ndarray of shape (n_u,).
         Signature: jacobian_f1_trans(u, d) -> ndarray.
         Required if mapping_f1 is provided.
     set_c_project : callable or None
@@ -307,7 +297,7 @@ class ALM_Factory:
     mapping_f2 : callable or None
         F2(u) -> ndarray of shape (n2,).  Required if n2 > 0.
     jacobian_f2_trans : callable or None
-        JF2(u)ᵀd -> ndarray of shape (n_u,).
+        JF2(u)^Td -> ndarray of shape (n_u,).
         Signature: jacobian_f2_trans(u, d) -> ndarray.
         Required if mapping_f2 is provided.
     n1 : int
@@ -332,16 +322,16 @@ class ALM_Factory:
         n1: int = 0,
         n2: int = 0,
     ):
-        # Validation: F1, JF1ᵀ and C must be provided together
+        # Validation: F1, JF1^T and C must be provided together
         assert not ((mapping_f1 is None) ^ (set_c_project is None)), \
             "F1 and set C must both be provided or both omitted"
         assert not ((mapping_f1 is None) ^ (jacobian_f1_trans is None)), \
-            "F1 and JF1ᵀ must both be provided or both omitted"
-        # Validation: F2 and JF2ᵀ must be provided together, iff n2 > 0
+            "F1 and JF1^T must both be provided or both omitted"
+        # Validation: F2 and JF2^T must be provided together, iff n2 > 0
         assert not ((mapping_f2 is None) ^ (n2 == 0)), \
             "F2 must be provided if and only if n2 > 0"
         assert not ((mapping_f2 is None) ^ (jacobian_f2_trans is None)), \
-            "F2 and JF2ᵀ must both be provided or both omitted"
+            "F2 and JF2^T must both be provided or both omitted"
 
         self._f = f
         self._df = df
@@ -355,30 +345,30 @@ class ALM_Factory:
 
     def psi(self, u: np.ndarray, xi: np.ndarray) -> float:
         """
-        Compute the augmented cost ψ(u; ξ).
+        Compute the augmented cost psi(u; xi).
 
         Parameters
         ----------
         u : np.ndarray
             Decision variable.
         xi : np.ndarray
-            Parameter vector ξ = (c, y).  May be empty if n1 = n2 = 0.
+            Parameter vector xi = (c, y).  May be empty if n1 = n2 = 0.
 
         Returns
         -------
         float
-            Value of ψ(u; ξ).
+            Value of psi(u; xi).
         """
         cost = self._f(u)
         n_y = len(xi) - 1 if len(xi) > 0 else 0
 
-        # ALM term: (c/2) * dist²_C(F1(u) + y/c̄)
+        # ALM term: (c/2) * dist^2_C(F1(u) + y/c_bar)
         if self._mapping_f1 is not None and self._set_c_project is not None:
             c = xi[0]
             y = xi[1:]
             c_bar = max(c, 1.0)
 
-            # t = F1(u) + y / c̄
+            # t = F1(u) + y / c_bar
             f1_u = self._mapping_f1(u)
             t = f1_u + y / c_bar
 
@@ -386,12 +376,12 @@ class ALM_Factory:
             s = t.copy()
             self._set_c_project(s)
 
-            # dist²_C(t) = ||t - s||²
+            # dist^2_C(t) = ||t - s||^2
             diff = t - s
             dist_sq = float(np.dot(diff, diff))
             cost += 0.5 * c * dist_sq
 
-        # PM term: (c/2) * ||F2(u)||²
+        # PM term: (c/2) * ||F2(u)||^2
         if self._mapping_f2 is not None:
             c = xi[0]
             f2_u = self._mapping_f2(u)
@@ -401,30 +391,30 @@ class ALM_Factory:
 
     def d_psi(self, u: np.ndarray, xi: np.ndarray) -> np.ndarray:
         """
-        Compute the gradient ∇ψ(u; ξ).
+        Compute the gradient Nabla psi(u; xi).
 
         Parameters
         ----------
         u : np.ndarray
             Decision variable.
         xi : np.ndarray
-            Parameter vector ξ = (c, y).  May be empty if n1 = n2 = 0.
+            Parameter vector xi = (c, y).  May be empty if n1 = n2 = 0.
 
         Returns
         -------
         np.ndarray
-            Gradient ∇ψ(u; ξ) of shape (n_u,).
+            Gradient Nabla psi(u; xi) of shape (n_u,).
         """
         grad = self._df(u).copy()
 
-        # ALM gradient: c · JF1(u)ᵀ [t(u) - Π_C(t(u))]
+        # ALM gradient: c · JF1(u)^T [t(u) - Π_C(t(u))]
         if (self._mapping_f1 is not None
                 and self._jacobian_f1_trans is not None
                 and self._set_c_project is not None):
             c = xi[0]
             y = xi[1:]
 
-            # t = F1(u) + y/c  (note: uses c, not c̄)
+            # t = F1(u) + y/c  (note: uses c, not c_bar)
             f1_u = self._mapping_f1(u)
             t = f1_u + y / c
 
@@ -435,11 +425,11 @@ class ALM_Factory:
             # d = t - Π_C(t)
             d = t - s
 
-            # grad += c · JF1(u)ᵀ · d
+            # grad += c · JF1(u)^T · d
             jf1t_d = self._jacobian_f1_trans(u, d)
             grad += c * jf1t_d
 
-        # PM gradient: c · JF2(u)ᵀ · F2(u)
+        # PM gradient: c · JF2(u)^T · F2(u)
         if (self._mapping_f2 is not None
                 and self._jacobian_f2_trans is not None):
             c = xi[0]
@@ -465,9 +455,9 @@ class ALM_Problem:
     Parameters
     ----------
     parametric_cost : callable
-        ψ(u, xi) -> float.  Augmented cost function.
+        psi(u, xi) -> float.  Augmented cost function.
     parametric_gradient : callable
-        ∇ψ(u, xi) -> ndarray.  Gradient of the augmented cost.
+        Nabla psi(u, xi) -> ndarray.  Gradient of the augmented cost.
     u_min : np.ndarray or None
         Element-wise lower bounds on u.  At least one of u_min / u_max
         must be provided.
@@ -764,9 +754,9 @@ class ALM_Optimizer:
 
     def _solve_inner_problem(self, u: np.ndarray) -> PANOC_SolverStatus:
         """
-        Solve the inner problem ``min_{u ∈ U} ψ(u; ξ)`` using PANOC.
+        Solve the inner problem ``min_{u ∈ U} psi(u; xi)`` using PANOC.
 
-        The parameter vector ξ is captured from the cache by reference.
+        The parameter vector xi is captured from the cache by reference.
         """
         xi = self._cache.xi if self._cache.xi is not None else np.array([])
         # Build non-parametric cost/gradient by capturing xi
@@ -956,7 +946,7 @@ class ALM_Optimizer:
         Compute the original cost f(u) at the solution, excluding
         penalty terms.  This is done by temporarily setting c = 0
         in xi (the augmented cost with c = 0 reduces to f(u) because
-        the factory uses c̄ = max(1, c) in the denominator, so the
+        the factory uses c_bar = max(1, c) in the denominator, so the
         penalty term becomes 0.5 * 0 * ... = 0).
         """
         if self._cache.xi is not None:
