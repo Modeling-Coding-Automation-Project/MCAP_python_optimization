@@ -21,9 +21,9 @@ For nonlinear MPC applications, the typical constraints are:
     - y_min <= Y(u) <= y_max  (output box constraints → F1(u) = Y(u), C = [y_min, y_max])
 
 Algorithm overview (outer loop):
-1. y ← Π_Y(y)                           (project Lagrange multipliers onto set Y)
+1. y ← Pi_Y(y)                           (project Lagrange multipliers onto set Y)
 2. u ← argmin_{u∈U} psi(u; xi)             (solve inner problem via PANOC, xi = (c, y))
-3. y⁺ ← y + c[F1(u) - Π_C(F1(u) + y/c)] (update Lagrange multipliers)
+3. y⁺ ← y + c[F1(u) - Pi_C(F1(u) + y/c)] (update Lagrange multipliers)
 4. z⁺ ← ||y⁺ - y||, t⁺ ← ||F2(u)||     (compute infeasibility measures)
 5. If z⁺ ≤ cδ and t⁺ ≤ δ and ε_nu ≤ ε    → converged, return (u, y⁺)
 6. Else if no sufficient decrease         → c ← rho·c  (increase penalty)
@@ -32,7 +32,7 @@ Algorithm overview (outer loop):
 The augmented cost function is:
     psi(u; xi) = f(u) + (c/2)[dist^2_C(F1(u) + y/c_bar) + ||F2(u)||^2]
 where c_bar = max(1, c), and its gradient is:
-    Nabla psi(u; xi) = Nabla f(u) + c·JF1(u)^T[t(u) - Π_C(t(u))] + c·JF2(u)^TF2(u)
+    Nabla psi(u; xi) = Nabla f(u) + c·JF1(u)^T[t(u) - Pi_C(t(u))] + c·JF2(u)^TF2(u)
 where t(u) = F1(u) + y/c.
 
 Module structure:
@@ -274,7 +274,7 @@ class ALM_Factory:
 
         psi(u; xi) = f(u) + (c/2)[dist^2_C(F1(u) + y/c_bar) + ||F2(u)||^2]
 
-        Nabla psi(u; xi) = Nabla f(u) + c·JF1(u)^T[t(u) - Π_C(t(u))] + c·JF2(u)^TF2(u)
+        Nabla psi(u; xi) = Nabla f(u) + c·JF1(u)^T[t(u) - Pi_C(t(u))] + c·JF2(u)^TF2(u)
 
     where c_bar = max(1, c), t(u) = F1(u) + y/c_bar for psi and t(u) = F1(u) + y/c
     for Nabla psi, and xi = (c, y).
@@ -360,7 +360,7 @@ class ALM_Factory:
             Value of psi(u; xi).
         """
         cost = self._f(u)
-        n_y = len(xi) - 1 if len(xi) > 0 else 0
+        # n_y = len(xi) - 1 if len(xi) > 0 else 0
 
         # ALM term: (c/2) * dist^2_C(F1(u) + y/c_bar)
         if self._mapping_f1 is not None and self._set_c_project is not None:
@@ -372,7 +372,7 @@ class ALM_Factory:
             f1_u = self._mapping_f1(u)
             t = f1_u + y / c_bar
 
-            # s = Π_C(t)
+            # s = Pi_C(t)
             s = t.copy()
             self._set_c_project(s)
 
@@ -407,7 +407,7 @@ class ALM_Factory:
         """
         grad = self._df(u).copy()
 
-        # ALM gradient: c · JF1(u)^T [t(u) - Π_C(t(u))]
+        # ALM gradient: c · JF1(u)^T [t(u) - Pi_C(t(u))]
         if (self._mapping_f1 is not None
                 and self._jacobian_f1_trans is not None
                 and self._set_c_project is not None):
@@ -418,11 +418,11 @@ class ALM_Factory:
             f1_u = self._mapping_f1(u)
             t = f1_u + y / c
 
-            # s = Π_C(t)
+            # s = Pi_C(t)
             s = t.copy()
             self._set_c_project(s)
 
-            # d = t - Π_C(t)
+            # d = t - Pi_C(t)
             d = t - s
 
             # grad += c · JF1(u)^T · d
@@ -720,7 +720,7 @@ class ALM_Optimizer:
         inner_exit_status = inner_status.exit_status
 
         # 3. Update Lagrange multipliers:
-        #    y⁺ ← y + c·[F1(u) - Π_C(F1(u) + y/c)]
+        #    y⁺ ← y + c·[F1(u) - Pi_C(F1(u) + y/c)]
         self._update_lagrange_multipliers(u)
 
         # 4. Compute infeasibility measures
@@ -781,12 +781,12 @@ class ALM_Optimizer:
     def _update_lagrange_multipliers(self, u: np.ndarray) -> None:
         """
         Update Lagrange multipliers:
-            y⁺ = y + c · [F1(u) - Π_C(F1(u) + y/c)]
+            y⁺ = y + c · [F1(u) - Pi_C(F1(u) + y/c)]
 
         Steps:
             1. w = F1(u)
             2. y_plus = w + y/c
-            3. y_plus = Π_C(y_plus)
+            3. y_plus = Pi_C(y_plus)
             4. y_plus = y + c · (w - y_plus)
         """
         if self._problem.n1 == 0:
@@ -810,10 +810,10 @@ class ALM_Optimizer:
         # Step 2: y_plus = F1(u) + y/c
         self._cache.y_plus[:] = w + y / c
 
-        # Step 3: y_plus = Π_C(y_plus)
+        # Step 3: y_plus = Pi_C(y_plus)
         set_c(self._cache.y_plus)
 
-        # Step 4: y_plus = y + c · (F1(u) - Π_C(F1(u) + y/c))
+        # Step 4: y_plus = y + c · (F1(u) - Pi_C(F1(u) + y/c))
         self._cache.y_plus[:] = y + c * (w - self._cache.y_plus)
 
     def _compute_alm_infeasibility(self) -> None:
