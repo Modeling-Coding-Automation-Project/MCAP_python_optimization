@@ -66,7 +66,7 @@ MAX_ITER_DEFAULT_DEFAULT: int = 100
 # L-BFGS defaults
 SY_EPSILON_DEFAULT: float = 1e-10
 CBFGS_EPSILON_DEFAULT: float = 1e-8
-CBFGS_ALPHA_DEFAULT: float = 1.0
+CBFGS_ALPHA_DEFAULT: int = 1  # must be 0 or 1 or 2
 
 NORM_S_SMALL_LIMIT = 1e-30
 
@@ -136,7 +136,7 @@ class L_BFGS_Buffer:
         problem_size: int,
         buffer_size: int,
         sy_epsilon: float = SY_EPSILON_DEFAULT,
-        cbfgs_alpha: float = CBFGS_ALPHA_DEFAULT,
+        cbfgs_alpha: int = CBFGS_ALPHA_DEFAULT,
         cbfgs_epsilon: float = CBFGS_EPSILON_DEFAULT,
     ):
         assert problem_size > 0
@@ -145,7 +145,11 @@ class L_BFGS_Buffer:
         self._n = problem_size
         self._m = buffer_size
         self.sy_epsilon = sy_epsilon
+
+        if cbfgs_alpha > 2:
+            raise ValueError("cbfgs_alpha must be 0, 1, or 2")
         self.cbfgs_alpha = cbfgs_alpha
+
         self.cbfgs_epsilon = cbfgs_epsilon
 
         # Storage: buffer_size+1 entries (last is temporary workspace)
@@ -236,7 +240,7 @@ class L_BFGS_Buffer:
 
         self._rho[index] = 1.0 / ys
 
-        if self.cbfgs_epsilon > 0.0 and self.cbfgs_alpha > 0.0:
+        if self.cbfgs_epsilon > 0.0:
             lhs = ys / norm_s_sq
             rhs = self.cbfgs_epsilon * (np.linalg.norm(g) ** self.cbfgs_alpha)
             if lhs <= rhs:
@@ -291,7 +295,12 @@ class PANOCCache:
         L-BFGS memory size (number of stored pairs).
     """
 
-    def __init__(self, problem_size: int, tolerance: float, lbfgs_memory: int):
+    def __init__(
+        self,
+        problem_size: int,
+        tolerance: float,
+        lbfgs_memory: int
+    ):
         assert tolerance > 0.0, "tolerance must be positive"
         n = problem_size
         self.tolerance: float = tolerance
