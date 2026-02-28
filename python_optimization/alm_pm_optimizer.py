@@ -554,8 +554,6 @@ class ALM_PM_Optimizer:
         Initial penalty c₀.  None uses the cache default.
     initial_y : np.ndarray or None
         Initial Lagrange multiplier vector y⁰.  None uses zeros.
-    max_duration : float or None
-        Maximum allowed solve time in seconds.  None means unlimited.
     """
 
     def __init__(
@@ -597,7 +595,6 @@ class ALM_PM_Optimizer:
         self.epsilon_update_factor = epsilon_update_factor
         self.sufficient_decrease_coefficient = sufficient_decrease_coefficient
         self.initial_inner_tolerance = initial_inner_tolerance
-        self.max_duration = max_duration
 
         # Set initial penalty parameter
         if initial_penalty is not None:
