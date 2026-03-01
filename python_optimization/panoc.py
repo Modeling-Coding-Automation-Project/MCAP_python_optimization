@@ -39,7 +39,6 @@ import numpy as np
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Callable, Optional
-import time
 
 # ============================================================================
 # Constants (matching optimization-engine defaults)
@@ -504,7 +503,6 @@ class PANOC_Optimizer:
         SolverStatus
             Information about the solve (convergence, iterations, etc.).
         """
-        t_start = time.perf_counter()
         c = self._cache
         c.reset()
 
