@@ -221,6 +221,8 @@ class L_BFGS_Buffer:
 
         self._n = problem_size
         self._m = buffer_size
+
+        assert sy_epsilon > 0.0, "sy_epsilon must be positive"
         self.sy_epsilon = sy_epsilon
 
         if cbfgs_alpha > 2:
@@ -316,7 +318,7 @@ class L_BFGS_Buffer:
 
         if norm_s_sq <= NORM_S_SMALL_LIMIT:
             return None
-        if self.sy_epsilon > 0.0 and ys <= self.sy_epsilon:
+        if ys <= self.sy_epsilon:
             return None
 
         if self.cbfgs_epsilon > 0.0 and self.cbfgs_alpha > 0:
