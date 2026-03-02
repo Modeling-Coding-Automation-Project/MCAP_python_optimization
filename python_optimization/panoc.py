@@ -70,6 +70,40 @@ CBFGS_ALPHA_DEFAULT: int = 1  # must be 0 or 1 or 2
 NORM_S_SMALL_LIMIT = 1e-30
 
 
+class ExitStatus(Enum):
+    """
+    Exit status of the PANOC solver.
+    """
+    CONVERGED = auto()
+    NOT_CONVERGED_ITERATIONS = auto()
+    NOT_FINITE_COMPUTATION = auto()
+
+
+@dataclass
+class SolverStatus:
+    """
+    Result returned by :meth:`PANOC_Optimizer.solve`.
+
+    Attributes
+    ----------
+    exit_status : ExitStatus
+        Reason the solver terminated.
+    number_of_iteration : int
+        Number of iterations performed.
+    norm_fixed_point_residual : float
+        Norm of the fixed-point residual at the solution (||gamma * FPR||).
+    cost_value : float
+        Cost function value at the solution.
+    """
+    exit_status: ExitStatus
+    number_of_iteration: int
+    norm_fixed_point_residual: float
+    cost_value: float
+
+    def has_converged(self) -> bool:
+        return self.exit_status == ExitStatus.CONVERGED
+
+
 class VectorRingBuffer:
     """
     Circular buffer that stores fixed-size vectors (or scalars) with O(1) push.
@@ -150,40 +184,6 @@ class VectorRingBuffer:
         Number of valid entries currently in the buffer.
         """
         return self._active_size
-
-
-class ExitStatus(Enum):
-    """
-    Exit status of the PANOC solver.
-    """
-    CONVERGED = auto()
-    NOT_CONVERGED_ITERATIONS = auto()
-    NOT_FINITE_COMPUTATION = auto()
-
-
-@dataclass
-class SolverStatus:
-    """
-    Result returned by :meth:`PANOC_Optimizer.solve`.
-
-    Attributes
-    ----------
-    exit_status : ExitStatus
-        Reason the solver terminated.
-    number_of_iteration : int
-        Number of iterations performed.
-    norm_fixed_point_residual : float
-        Norm of the fixed-point residual at the solution (||gamma * FPR||).
-    cost_value : float
-        Cost function value at the solution.
-    """
-    exit_status: ExitStatus
-    number_of_iteration: int
-    norm_fixed_point_residual: float
-    cost_value: float
-
-    def has_converged(self) -> bool:
-        return self.exit_status == ExitStatus.CONVERGED
 
 
 class L_BFGS_Buffer:
