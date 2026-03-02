@@ -60,7 +60,7 @@ MAX_LIPSCHITZ_CONSTANT_DEFAULT: float = 1e9
 # Maximum number of line-search iterations
 MAX_LINESEARCH_ITERATIONS_DEFAULT: int = 10
 # Default maximum PANOC iterations
-max_iteration_DEFAULT_DEFAULT: int = 100
+MAX_ITERATION_DEFAULT: int = 100
 
 # L-BFGS defaults
 SY_EPSILON_DEFAULT: float = 1e-10
@@ -466,7 +466,7 @@ class PANOC_Optimizer:
         cache: PANOC_Cache,
         u_min: Optional[np.ndarray] = None,
         u_max: Optional[np.ndarray] = None,
-        max_iteration: int = max_iteration_DEFAULT_DEFAULT,
+        max_iteration: int = MAX_ITERATION_DEFAULT,
         max_lipschitz_update_iteration: int = MAX_LIPSCHITZ_UPDATE_ITERATIONS_DEFAULT,
         tolerance: Optional[float] = None,
     ):
