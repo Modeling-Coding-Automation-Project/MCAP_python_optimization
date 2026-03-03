@@ -125,10 +125,7 @@ class VectorRingBuffer:
         assert buffer_size > 0
         self._buffer_size = buffer_size
         self._element_size = element_size
-        if element_size > 0:
-            self._data = np.zeros((element_size, buffer_size))
-        else:
-            self._data = np.zeros(buffer_size)
+        self._data: list = [None] * buffer_size
         self._head: int = 0
 
         self._active_size: int = 0  # number of valid entries (<= buffer_size)
@@ -142,8 +139,8 @@ class VectorRingBuffer:
         """
         Push a new value, overwriting the oldest entry if the buffer is full.
         """
-        if self._element_size > 0:
-            self._data[:, self._head:self._head + 1] = value
+        if isinstance(value, np.ndarray):
+            self._data[self._head] = value.copy()
         else:
             self._data[self._head] = value
 
@@ -174,16 +171,44 @@ class VectorRingBuffer:
         if index < 0:
             index += self._buffer_size
 
-        if self._element_size > 0:
-            return self._data[:, index:index + 1]
-        else:
-            return self._data[index]
+        return self._data[index]
 
     def get_active_size(self) -> int:
         """
         Number of valid entries currently in the buffer.
         """
         return self._active_size
+
+    @staticmethod
+    def inner_product(a: np.ndarray, b: np.ndarray) -> float:
+        """
+        Compute the inner product (element-wise sum of products) of two arrays.
+
+        Parameters
+        ----------
+        a : np.ndarray
+            Left operand.
+        b : np.ndarray
+            Right operand.
+
+        Returns
+        -------
+        float
+            Sum of element-wise products.
+
+        Raises
+        ------
+        ValueError
+            If ``a.shape != b.shape``.
+        """
+        if a.shape != b.shape:
+            raise ValueError(
+                f"Shape mismatch for inner_product: a.shape={a.shape}, b.shape={b.shape}"
+            )
+        result = 0.0
+        for ai, bi in zip(a.flat, b.flat):
+            result += ai * bi
+        return result
 
 
 class L_BFGS_Buffer:
@@ -295,8 +320,8 @@ class L_BFGS_Buffer:
         self._rho.push(rho_new)
 
         # Update H0 scaling: gamma = (s^T y) / (y^T y)
-        ys = (self._s.get(0).T @ self._y.get(0)).item()
-        yy = (self._y.get(0).T @ self._y.get(0)).item()
+        ys = VectorRingBuffer.inner_product(self._s.get(0), self._y.get(0))
+        yy = VectorRingBuffer.inner_product(self._y.get(0), self._y.get(0))
         if yy > 0.0:
             self._gamma = ys / yy
 
@@ -313,8 +338,8 @@ class L_BFGS_Buffer:
         float or None
             ``1 / (s^T y)`` if the pair is accepted, ``None`` if rejected.
         """
-        ys = (s.T @ y).item()
-        norm_s_sq = (s.T @ s).item()
+        ys = VectorRingBuffer.inner_product(s, y)
+        norm_s_sq = VectorRingBuffer.inner_product(s, s)
 
         if norm_s_sq <= NORM_S_SMALL_LIMIT:
             return None
@@ -343,7 +368,8 @@ class L_BFGS_Buffer:
 
         # --- forward pass ---
         for i in range(self._s.get_active_size()):
-            alpha[i] = self._rho.get(i) * (self._s.get(i).T @ q).item()
+            alpha[i] = self._rho.get(
+                i) * VectorRingBuffer.inner_product(self._s.get(i), q)
             q -= alpha[i] * self._y.get(i)  # q = q - alpha_i * y_i
 
         # Apply H0 = gamma * I
@@ -351,7 +377,8 @@ class L_BFGS_Buffer:
 
         # --- backward pass ---
         for i in range(self._s.get_active_size() - 1, -1, -1):
-            beta = self._rho.get(i) * (self._y.get(i).T @ q).item()
+            beta = self._rho.get(
+                i) * VectorRingBuffer.inner_product(self._y.get(i), q)
             # q = q + (alpha_i - beta) * s_i
             q += (alpha[i] - beta) * self._s.get(i)
 
