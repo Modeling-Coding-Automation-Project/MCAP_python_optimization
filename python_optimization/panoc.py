@@ -104,7 +104,7 @@ class SolverStatus:
         return self.exit_status == ExitStatus.CONVERGED
 
 
-class VectorRingBuffer:
+class MatrixRingBuffer:
     """
     Circular buffer that stores fixed-size vectors (or scalars) with O(1) push.
 
@@ -165,7 +165,7 @@ class VectorRingBuffer:
             A view into the stored vector (or a scalar).
         """
         if index_from_latest < 0 or index_from_latest >= self._active_size:
-            raise IndexError("Index out of bounds for VectorRingBuffer")
+            raise IndexError("Index out of bounds for MatrixRingBuffer")
 
         index = self._head - 1 - index_from_latest
         if index < 0:
@@ -206,8 +206,11 @@ class VectorRingBuffer:
                 f"Shape mismatch for inner_product: a.shape={a.shape}, b.shape={b.shape}"
             )
         result = 0.0
-        for ai, bi in zip(a.flat, b.flat):
-            result += ai * bi
+
+        for i in range(a.shape[0]):
+            for j in range(a.shape[1]):
+                result += a[i, j] * b[i, j]
+
         return result
 
 
@@ -257,9 +260,9 @@ class L_BFGS_Buffer:
         self.cbfgs_epsilon = cbfgs_epsilon
 
         # Storage using ring buffers (no data copying on push)
-        self._s = VectorRingBuffer(buffer_size, problem_size)
-        self._y = VectorRingBuffer(buffer_size, problem_size)
-        self._rho = VectorRingBuffer(buffer_size)
+        self._s = MatrixRingBuffer(buffer_size, problem_size)
+        self._y = MatrixRingBuffer(buffer_size, problem_size)
+        self._rho = MatrixRingBuffer(buffer_size)
 
         # workspace for two-loop recursion
         self._alpha_buf = np.zeros(buffer_size)
@@ -320,8 +323,8 @@ class L_BFGS_Buffer:
         self._rho.push(rho_new)
 
         # Update H0 scaling: gamma = (s^T y) / (y^T y)
-        ys = VectorRingBuffer.inner_product(self._s.get(0), self._y.get(0))
-        yy = VectorRingBuffer.inner_product(self._y.get(0), self._y.get(0))
+        ys = MatrixRingBuffer.inner_product(self._s.get(0), self._y.get(0))
+        yy = MatrixRingBuffer.inner_product(self._y.get(0), self._y.get(0))
         if yy > 0.0:
             self._gamma = ys / yy
 
@@ -338,8 +341,8 @@ class L_BFGS_Buffer:
         float or None
             ``1 / (s^T y)`` if the pair is accepted, ``None`` if rejected.
         """
-        ys = VectorRingBuffer.inner_product(s, y)
-        norm_s_sq = VectorRingBuffer.inner_product(s, s)
+        ys = MatrixRingBuffer.inner_product(s, y)
+        norm_s_sq = MatrixRingBuffer.inner_product(s, s)
 
         if norm_s_sq <= NORM_S_SMALL_LIMIT:
             return None
@@ -369,7 +372,7 @@ class L_BFGS_Buffer:
         # --- forward pass ---
         for i in range(self._s.get_active_size()):
             alpha[i] = self._rho.get(
-                i) * VectorRingBuffer.inner_product(self._s.get(i), q)
+                i) * MatrixRingBuffer.inner_product(self._s.get(i), q)
             q -= alpha[i] * self._y.get(i)  # q = q - alpha_i * y_i
 
         # Apply H0 = gamma * I
@@ -378,7 +381,7 @@ class L_BFGS_Buffer:
         # --- backward pass ---
         for i in range(self._s.get_active_size() - 1, -1, -1):
             beta = self._rho.get(
-                i) * VectorRingBuffer.inner_product(self._y.get(i), q)
+                i) * MatrixRingBuffer.inner_product(self._y.get(i), q)
             # q = q + (alpha_i - beta) * s_i
             q += (alpha[i] - beta) * self._s.get(i)
 
