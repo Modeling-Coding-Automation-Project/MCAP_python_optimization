@@ -258,13 +258,13 @@ class ALM_Cache:
 
     def reset(
             self,
-            xi_initial_penalty: float
+            xi_initial_penalty: Optional[float] = None
     ) -> None:
         """
         Reset the cache to its initial state (called at the start of each solve).
         """
         if self.xi is not None:
-            self.xi[0, 0] = xi_initial_penalty
+            self.xi[0, 0] = xi_initial_penalty if xi_initial_penalty is not None else DEFAULT_INITIAL_PENALTY
 
         self.panoc_cache.reset()
         self.iteration = 0

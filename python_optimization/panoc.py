@@ -121,10 +121,9 @@ class MatrixRingBuffer:
         Number of valid entries currently in the buffer (<= buffer_size).
     """
 
-    def __init__(self, buffer_size: int, element_size: int = 0):
+    def __init__(self, buffer_size: int):
         assert buffer_size > 0
         self._buffer_size = buffer_size
-        self._element_size = element_size
         self._data: list = [None] * buffer_size
         self._head: int = 0
 
@@ -256,8 +255,8 @@ class L_BFGS_Buffer:
         self.cbfgs_epsilon = cbfgs_epsilon
 
         # Storage using ring buffers (no data copying on push)
-        self._s = MatrixRingBuffer(buffer_size, problem_size)
-        self._y = MatrixRingBuffer(buffer_size, problem_size)
+        self._s = MatrixRingBuffer(buffer_size)
+        self._y = MatrixRingBuffer(buffer_size)
         self._rho = MatrixRingBuffer(buffer_size)
 
         # workspace for two-loop recursion
