@@ -86,51 +86,6 @@ DEFAULT_INITIAL_PENALTY: float = 10.0
 # Machine epsilon for numerical comparisons
 SMALL_EPSILON: float = 1e-30
 
-INNER_PROBLEM_NORM_FPR_INITIAL = -1.0
-
-
-@dataclass
-class ALM_SolverStatus:
-    """
-    Result returned by :meth:`ALM_PM_Optimizer.solve`.
-
-    Attributes
-    ----------
-    exit_status : ExitStatus
-        Reason the solver terminated.
-    num_outer_iterations : int
-        Number of outer ALM/PM iterations performed.
-    num_inner_iterations : int
-        Total number of inner PANOC iterations across all outer iterations.
-    last_problem_norm_fpr : float
-        Norm of the fixed-point residual of the last inner problem.
-    lagrange_multipliers : np.ndarray or None
-        Final Lagrange multiplier vector y^+ (None if no ALM constraints).
-    penalty : float
-        Final value of the penalty parameter c.
-    delta_y_norm : float
-        ||y^+ - y|| at termination (ALM infeasibility measure).
-    f2_norm : float
-        ||F2(u)|| at termination (PM infeasibility measure).
-    cost : float
-        Original cost f(u) at the solution (without penalty terms).
-    """
-    exit_status: ExitStatus
-    num_outer_iterations: int
-    num_inner_iterations: int
-    last_problem_norm_fpr: float
-    lagrange_multipliers: Optional[np.ndarray]
-    penalty: float
-    delta_y_norm: float
-    f2_norm: float
-    cost: float
-
-    def has_converged(self) -> bool:
-        """
-        Return True if the solver converged to an (epsilon, delta)-AKKT point.
-        """
-        return self.exit_status == ExitStatus.CONVERGED
-
 
 class BoxProjectionOperator:
     """
@@ -199,6 +154,49 @@ class BallProjectionOperator:
                 x[:] = (self.radius / norm_d) * d
 
 
+@dataclass
+class ALM_SolverStatus:
+    """
+    Result returned by :meth:`ALM_PM_Optimizer.solve`.
+
+    Attributes
+    ----------
+    exit_status : ExitStatus
+        Reason the solver terminated.
+    num_outer_iterations : int
+        Number of outer ALM/PM iterations performed.
+    num_inner_iterations : int
+        Total number of inner PANOC iterations across all outer iterations.
+    last_problem_norm_fpr : float
+        Norm of the fixed-point residual of the last inner problem.
+    lagrange_multipliers : np.ndarray or None
+        Final Lagrange multiplier vector y^+ (None if no ALM constraints).
+    penalty : float
+        Final value of the penalty parameter c.
+    delta_y_norm : float
+        ||y^+ - y|| at termination (ALM infeasibility measure).
+    f2_norm : float
+        ||F2(u)|| at termination (PM infeasibility measure).
+    cost : float
+        Original cost f(u) at the solution (without penalty terms).
+    """
+    exit_status: ExitStatus
+    num_outer_iterations: int
+    num_inner_iterations: int
+    last_problem_norm_fpr: float
+    lagrange_multipliers: Optional[np.ndarray]
+    penalty: float
+    delta_y_norm: float
+    f2_norm: float
+    cost: float
+
+    def has_converged(self) -> bool:
+        """
+        Return True if the solver converged to an (epsilon, delta)-AKKT point.
+        """
+        return self.exit_status == ExitStatus.CONVERGED
+
+
 class ALM_Cache:
     """
     Pre-allocated working memory for the ALM/PM algorithm.
@@ -256,12 +254,18 @@ class ALM_Cache:
         # Counters
         self.iteration: int = 0
         self.inner_iteration_count: int = 0
-        self.last_inner_problem_norm_fpr: float = INNER_PROBLEM_NORM_FPR_INITIAL
+        self.last_inner_problem_norm_fpr: float = -1.0
 
-    def reset(self) -> None:
+    def reset(
+            self,
+            xi_initial_penalty: float
+    ) -> None:
         """
         Reset the cache to its initial state (called at the start of each solve).
         """
+        if self.xi is not None:
+            self.xi[0, 0] = xi_initial_penalty
+
         self.panoc_cache.reset()
         self.iteration = 0
         self.f2_norm = 0.0
@@ -598,6 +602,8 @@ class ALM_PM_Optimizer:
         self.initial_inner_tolerance = initial_inner_tolerance
 
         # Set initial penalty parameter
+        self.initial_penalty = initial_penalty
+
         if initial_penalty is not None:
             assert initial_penalty > SMALL_EPSILON, \
                 "initial_penalty must be positive"
@@ -630,7 +636,7 @@ class ALM_PM_Optimizer:
         ALM_SolverStatus
             Solver status including exit condition, iterations, cost, etc.
         """
-        self._cache.reset()
+        self._cache.reset(self.initial_penalty)
         self._cache.panoc_cache.tolerance = self.initial_inner_tolerance
 
         num_outer_iterations = 0
