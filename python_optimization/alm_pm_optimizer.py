@@ -86,6 +86,8 @@ DEFAULT_INITIAL_PENALTY: float = 10.0
 # Machine epsilon for numerical comparisons
 SMALL_EPSILON: float = 1e-30
 
+INNER_PROBLEM_NORM_FPR_INITIAL = -1.0
+
 
 @dataclass
 class ALM_SolverStatus:
@@ -254,7 +256,7 @@ class ALM_Cache:
         # Counters
         self.iteration: int = 0
         self.inner_iteration_count: int = 0
-        self.last_inner_problem_norm_fpr: float = -1.0
+        self.last_inner_problem_norm_fpr: float = INNER_PROBLEM_NORM_FPR_INITIAL
 
     def reset(self) -> None:
         """
