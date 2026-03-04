@@ -205,13 +205,9 @@ class MatrixRingBuffer:
             raise ValueError(
                 f"Shape mismatch for inner_product: a.shape={a.shape}, b.shape={b.shape}"
             )
-        result = 0.0
-
-        for i in range(a.shape[0]):
-            for j in range(a.shape[1]):
-                result += a[i, j] * b[i, j]
-
-        return result
+        a_flat = a.flatten()
+        b_flat = b.flatten()
+        return float((a_flat.T @ b_flat).item())
 
 
 class L_BFGS_Buffer:
