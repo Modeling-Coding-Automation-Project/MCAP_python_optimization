@@ -11,7 +11,7 @@ as the PANOC/ALM algorithm only requires first-order information
 
 This module provides:
 - Code generation for state/measurement equations and their Jacobians.
-- Numerical evaluation of state/measurement functions and Jacobians.
+- Numerical evaluation of state/measurement equations and Jacobians.
 - Cost function and gradient computation (via adjoint method) for PANOC.
 - Output constraint mapping and its Jacobian transpose for ALM.
 """
@@ -26,8 +26,8 @@ from external_libraries.MCAP_python_control.python_control.control_deploy import
 from optimization_utility.sqp_matrix_utility import extract_parameters_from_state_space_equations
 
 # File name suffixes for generated numpy code files
-STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX = "oe_state_function.py"
-MEASUREMENT_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX = "oe_measurement_function.py"
+STATE_EQUATION_NUMPY_CODE_FILE_NAME_SUFFIX = "oe_state_equation.py"
+MEASUREMENT_EQUATION_NUMPY_CODE_FILE_NAME_SUFFIX = "oe_measurement_equation.py"
 
 STATE_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX = "oe_state_jacobian_x.py"
 STATE_JACOBIAN_U_NUMPY_CODE_FILE_NAME_SUFFIX = "oe_state_jacobian_u.py"
@@ -165,9 +165,9 @@ class OptimizationEngine_CostMatrices:
         self.state_jacobian_u = self.f.jacobian(self.u_syms)   # df/du
         self.measurement_jacobian_x = self.h.jacobian(self.x_syms)  # dh/dx
 
-        # Create numpy code files for state and measurement functions
-        self.state_function_code_file_name, \
-            self.measurement_function_code_file_name = \
+        # Create numpy code files for state and measurement equations
+        self.state_equation_code_file_name, \
+            self.measurement_equation_code_file_name = \
             self.create_state_measurement_equation_numpy_code(
                 file_name_without_ext=caller_file_name_without_ext)
 
@@ -178,13 +178,13 @@ class OptimizationEngine_CostMatrices:
                 file_name_without_ext=caller_file_name_without_ext)
 
         # Load callable functions from generated code files
-        self.state_function_code_file_function = \
+        self.state_equation_code_file_function = \
             self.get_function_caller_from_python_file(
-                self.state_function_code_file_name)
+                self.state_equation_code_file_name)
 
-        self.measurement_function_code_file_function = \
+        self.measurement_equation_code_file_function = \
             self.get_function_caller_from_python_file(
-                self.measurement_function_code_file_name)
+                self.measurement_equation_code_file_name)
 
         self.state_jacobian_x_code_file_function = \
             self.get_function_caller_from_python_file(
@@ -215,33 +215,33 @@ class OptimizationEngine_CostMatrices:
         Args:
             file_name_without_ext (str): Base file name for generated code files.
         Returns:
-            tuple: (state_function_code_file_name, measurement_function_code_file_name)
+            tuple: (state_equation_code_file_name, measurement_equation_code_file_name)
         """
-        state_function_code_file_name = STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
-        measurement_function_code_file_name = MEASUREMENT_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
+        state_equation_code_file_name = STATE_EQUATION_NUMPY_CODE_FILE_NAME_SUFFIX
+        measurement_equation_code_file_name = MEASUREMENT_EQUATION_NUMPY_CODE_FILE_NAME_SUFFIX
 
         if file_name_without_ext is not None:
-            state_function_code_file_name = file_name_without_ext + \
-                "_" + state_function_code_file_name
-            measurement_function_code_file_name = file_name_without_ext + \
-                "_" + measurement_function_code_file_name
+            state_equation_code_file_name = file_name_without_ext + \
+                "_" + state_equation_code_file_name
+            measurement_equation_code_file_name = file_name_without_ext + \
+                "_" + measurement_equation_code_file_name
 
         # write code
         ExpressionDeploy.write_function_code_from_sympy(
             sym_object=self.f,
-            sym_object_name=os.path.splitext(state_function_code_file_name)[0],
+            sym_object_name=os.path.splitext(state_equation_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
             sym_object=self.h,
             sym_object_name=os.path.splitext(
-                measurement_function_code_file_name)[0],
+                measurement_equation_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
-        return state_function_code_file_name, \
-            measurement_function_code_file_name
+        return state_equation_code_file_name, \
+            measurement_equation_code_file_name
 
     def create_jacobians_numpy_code(
             self,
@@ -373,14 +373,14 @@ class OptimizationEngine_CostMatrices:
     # Numerical evaluation methods
     # ----------------------------------------------------------------
 
-    def calculate_state_function(
+    def calculate_state_equation(
             self,
             X: np.ndarray,
             U: np.ndarray,
             Parameters
     ) -> np.ndarray:
         """
-        Calculates the next state vector using the state function.
+        Calculates the next state vector using the state equation.
         Args:
             X (np.ndarray): Current state vector of shape (nx,) or (nx, 1).
             U (np.ndarray): Control input vector of shape (nu,) or (nu, 1).
@@ -390,10 +390,10 @@ class OptimizationEngine_CostMatrices:
         """
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
-        X_next = self.state_function_code_file_function(X, U, Parameters)
+        X_next = self.state_equation_code_file_function(X, U, Parameters)
         return X_next.reshape((self.nx, 1))
 
-    def calculate_measurement_function(
+    def calculate_measurement_equation(
             self,
             X: np.ndarray,
             Parameters
@@ -408,7 +408,7 @@ class OptimizationEngine_CostMatrices:
         """
         X = X.reshape((self.nx, 1))
         U = np.zeros((self.nu, 1))
-        Y = self.measurement_function_code_file_function(X, U, Parameters)
+        Y = self.measurement_equation_code_file_function(X, U, Parameters)
         return Y.reshape((self.ny, 1))
 
     def calculate_state_jacobian_x(
@@ -418,7 +418,7 @@ class OptimizationEngine_CostMatrices:
             Parameters
     ) -> np.ndarray:
         """
-        Calculates the Jacobian of the state function w.r.t. state variables.
+        Calculates the Jacobian of the state equation w.r.t. state variables.
         Args:
             X (np.ndarray): State vector.
             U (np.ndarray): Control input vector.
@@ -438,7 +438,7 @@ class OptimizationEngine_CostMatrices:
             Parameters
     ) -> np.ndarray:
         """
-        Calculates the Jacobian of the state function w.r.t. control inputs.
+        Calculates the Jacobian of the state equation w.r.t. control inputs.
         Args:
             X (np.ndarray): State vector.
             U (np.ndarray): Control input vector.
@@ -457,7 +457,7 @@ class OptimizationEngine_CostMatrices:
             Parameters
     ) -> np.ndarray:
         """
-        Calculates the Jacobian of the measurement function w.r.t. state variables.
+        Calculates the Jacobian of the measurement equation w.r.t. state variables.
         Args:
             X (np.ndarray): State vector.
             Parameters: Model parameters.
@@ -489,7 +489,7 @@ class OptimizationEngine_CostMatrices:
         X_horizon = np.zeros((self.nx, self.Np + 1))
         X_horizon[:, 0] = X_initial.flatten()
         for k in range(self.Np):
-            X_horizon[:, k + 1] = self.calculate_state_function(
+            X_horizon[:, k + 1] = self.calculate_state_equation(
                 X_horizon[:, k], U_horizon[:, k], Parameters).flatten()
         return X_horizon
 
@@ -509,7 +509,7 @@ class OptimizationEngine_CostMatrices:
                 (self.ny, 1)), (1, self.Np + 1))
 
         for k in range(self.Np + 1):
-            Y_horizon[:, k] += self.calculate_measurement_function(
+            Y_horizon[:, k] += self.calculate_measurement_equation(
                 X_horizon[:, k], self.state_space_parameters).flatten()
 
         return Y_horizon
