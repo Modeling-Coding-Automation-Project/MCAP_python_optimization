@@ -4,7 +4,7 @@ File: sqp_matrix_utility.py
 A utility module for constructing and handling matrices and functions
 used in Sequential Quadratic Programming (SQP) for Nonlinear Model Predictive Control (NMPC).
 It includes functionality to extract parameters from state-space equations,
-generate code for state and measurement functions,
+generate code for state and measurement equations,
 compute Jacobians and Hessians, and evaluate cost functions and their gradients.
 """
 import os
@@ -17,8 +17,8 @@ from external_libraries.MCAP_python_control.python_control.control_deploy import
 
 Y_MIN_MAX_RHO_FACTOR_DEFAULT = 1.0e2
 
-STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_state_function.py"
-MEASUREMENT_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_measurement_function.py"
+STATE_EQUATION_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_state_equation.py"
+MEASUREMENT_EQUATION_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_measurement_equation.py"
 
 STATE_JACOBIAN_X_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_state_jacobian_x.py"
 STATE_JACOBIAN_U_NUMPY_CODE_FILE_NAME_SUFFIX = "sqp_state_jacobian_u.py"
@@ -117,8 +117,8 @@ class SQP_CostMatrices_NMPC:
         measurement_jacobian_x (sp.Matrix): Jacobian of h w.r.t. x.
         state_hessian_xx, state_hessian_xu, state_hessian_ux, state_hessian_uu: Hessians of f.
         measurement_hessian_xx: Hessians of h.
-        state_function_code_file_name (str): Generated state function code file name.
-        measurement_function_code_file_name (str): Generated measurement function code file name.
+        state_equation_code_file_name (str): Generated state equation code file name.
+        measurement_equation_code_file_name (str): Generated measurement equation code file name.
         state_jacobian_x_code_file_name (str): Generated state Jacobian w.r.t. x code file name.
         state_jacobian_u_code_file_name (str): Generated state Jacobian w.r.t. u code file name.
         measurement_jacobian_x_code_file_name (str):
@@ -127,7 +127,7 @@ class SQP_CostMatrices_NMPC:
           state_hessian_ux_code_file_name, state_hessian_uu_code_file_name:
             Generated Hessian code file names for f.
         measurement_hessian_xx_code_file_name: Generated Hessian code file name for h.
-        state_function_code_file_function (callable): Callable for
+        state_equation_code_file_function (callable): Callable for
     """
 
     def __init__(
@@ -227,8 +227,8 @@ class SQP_CostMatrices_NMPC:
         self.measurement_hessian_xx = self._stack_hessians_for_h()
 
         # create code files
-        self.state_function_code_file_name, \
-            self.measurement_function_code_file_name = \
+        self.state_equation_code_file_name, \
+            self.measurement_equation_code_file_name = \
             self.create_state_measurement_equation_numpy_code(
                 file_name_without_ext=caller_file_name_without_ext)
 
@@ -246,13 +246,13 @@ class SQP_CostMatrices_NMPC:
             self.create_hessian_numpy_code(
                 file_name_without_ext=caller_file_name_without_ext)
 
-        # state function module
-        self.state_function_code_file_function = self.get_function_caller_from_python_file(
-            self.state_function_code_file_name)
+        # state equation module
+        self.state_equation_code_file_function = self.get_function_caller_from_python_file(
+            self.state_equation_code_file_name)
 
-        # measurement function module
-        self.measurement_function_code_file_function = self.get_function_caller_from_python_file(
-            self.measurement_function_code_file_name)
+        # measurement equation module
+        self.measurement_equation_code_file_function = self.get_function_caller_from_python_file(
+            self.measurement_equation_code_file_name)
 
         # jacobian modules
         self.state_jacobian_x_code_file_function = self.get_function_caller_from_python_file(
@@ -349,34 +349,34 @@ class SQP_CostMatrices_NMPC:
         Args:
             file_name_without_ext (str): The file name without extension to use for generated code files.
         Returns:
-            state_function_code_file_name (str): The generated state function code file name.
-            measurement_function_code_file_name (str): The generated measurement function code file name.
+            state_equation_code_file_name (str): The generated state equation code file name.
+            measurement_equation_code_file_name (str): The generated measurement equation code file name.
         """
-        state_function_code_file_name = STATE_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
-        measurement_function_code_file_name = MEASUREMENT_FUNCTION_NUMPY_CODE_FILE_NAME_SUFFIX
+        state_equation_code_file_name = STATE_EQUATION_NUMPY_CODE_FILE_NAME_SUFFIX
+        measurement_equation_code_file_name = MEASUREMENT_EQUATION_NUMPY_CODE_FILE_NAME_SUFFIX
 
         if file_name_without_ext is not None:
-            state_function_code_file_name = file_name_without_ext + \
-                "_" + state_function_code_file_name
-            measurement_function_code_file_name = file_name_without_ext + \
-                "_" + measurement_function_code_file_name
+            state_equation_code_file_name = file_name_without_ext + \
+                "_" + state_equation_code_file_name
+            measurement_equation_code_file_name = file_name_without_ext + \
+                "_" + measurement_equation_code_file_name
 
         # write code
         ExpressionDeploy.write_function_code_from_sympy(
             sym_object=self.f,
-            sym_object_name=os.path.splitext(state_function_code_file_name)[0],
+            sym_object_name=os.path.splitext(state_equation_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
         ExpressionDeploy.write_function_code_from_sympy(
             sym_object=self.h,
             sym_object_name=os.path.splitext(
-                measurement_function_code_file_name)[0],
+                measurement_equation_code_file_name)[0],
             X=self.x_syms, U=self.u_syms
         )
 
-        return state_function_code_file_name, \
-            measurement_function_code_file_name
+        return state_equation_code_file_name, \
+            measurement_equation_code_file_name
 
     def create_jacobians_numpy_code(
         self,
@@ -645,19 +645,19 @@ class SQP_CostMatrices_NMPC:
 
         return np.zeros((self.nu, self.nx))
 
-    def calculate_state_function(
+    def calculate_state_equation(
             self,
             X: np.ndarray,
             U: np.ndarray,
             Parameters
     ) -> np.ndarray:
         """
-        Calculates the next state vector using the provided state function.
+        Calculates the next state vector using the provided state equation.
 
         Args:
             X (np.ndarray): Current state vector of shape (nx,) or (nx, 1).
             U (np.ndarray): Control input vector of shape (nu,) or (nu, 1).
-            Parameters: Additional parameters required by the state function.
+            Parameters: Additional parameters required by the state equation.
 
         Returns:
             np.ndarray: Next state vector reshaped to (nx, 1).
@@ -665,21 +665,21 @@ class SQP_CostMatrices_NMPC:
         X = X.reshape((self.nx, 1))
         U = U.reshape((self.nu, 1))
 
-        X_next = self.state_function_code_file_function(X, U, Parameters)
+        X_next = self.state_equation_code_file_function(X, U, Parameters)
 
         return X_next.reshape((self.nx, 1))
 
-    def calculate_measurement_function(
+    def calculate_measurement_equation(
             self,
             X: np.ndarray,
             Parameters
     ) -> np.ndarray:
         """
-        Calculates the measurement function output for given state and parameters.
+        Calculates the measurement equation output for given state and parameters.
 
         Args:
             X (np.ndarray): State vector of shape (nx,) or (nx, 1).
-            Parameters: Additional parameters required by the measurement function.
+            Parameters: Additional parameters required by the measurement equation.
 
         Returns:
             np.ndarray: Measurement output vector of shape (ny, 1).
@@ -687,7 +687,7 @@ class SQP_CostMatrices_NMPC:
         X = X.reshape((self.nx, 1))
         U = np.zeros((self.nu, 1))
 
-        Y = self.measurement_function_code_file_function(X, U, Parameters)
+        Y = self.measurement_equation_code_file_function(X, U, Parameters)
 
         return Y.reshape((self.ny, 1))
 
@@ -1010,7 +1010,7 @@ class SQP_CostMatrices_NMPC:
             X_initial (np.ndarray): Initial state vector of the system (shape: [nx,]).
             U_horizon (np.ndarray): Control input sequence over the prediction horizon
               (shape: [nu, Np]).
-            Parameters: Additional parameters required by the state function.
+            Parameters: Additional parameters required by the state equation.
         Returns:
             np.ndarray: Simulated state trajectory over the prediction horizon
               (shape: [nx, Np + 1]).
@@ -1018,7 +1018,7 @@ class SQP_CostMatrices_NMPC:
         X_horizon = np.zeros((self.nx, self.Np + 1))
         X_horizon[:, 0] = X_initial.flatten()
         for k in range(self.Np):
-            X_horizon[:, k + 1] = self.calculate_state_function(
+            X_horizon[:, k + 1] = self.calculate_state_equation(
                 X_horizon[:, k], U_horizon[:, k], Parameters).flatten()
 
         return X_horizon
@@ -1124,7 +1124,7 @@ class SQP_CostMatrices_NMPC:
                 (self.ny, 1)), (1, self.Np + 1))
 
         for k in range(self.Np + 1):
-            Y_horizon[:, k] += self.calculate_measurement_function(
+            Y_horizon[:, k] += self.calculate_measurement_equation(
                 X_horizon[:, k], self.state_space_parameters).flatten()
 
         Y_limit_penalty = self.calculate_Y_limit_penalty(Y_horizon)
@@ -1190,7 +1190,7 @@ class SQP_CostMatrices_NMPC:
                 (self.ny, 1)), (1, self.Np + 1))
 
         for k in range(self.Np + 1):
-            Y_horizon[:, k] += self.calculate_measurement_function(
+            Y_horizon[:, k] += self.calculate_measurement_equation(
                 X_horizon[:, k], self.state_space_parameters).flatten()
 
         Y_limit_penalty = self.calculate_Y_limit_penalty(Y_horizon)
@@ -1259,7 +1259,7 @@ class SQP_CostMatrices_NMPC:
               control inputs, shape (nu, Np).
         Notes:
             - The method assumes the existence of system dynamics,
-              measurement functions, and their derivatives.
+              measurement equations, and their derivatives.
             - The computation involves both first- and second-order derivatives
               of the cost and system dynamics.
             - The returned value can be used for second-order optimization algorithms
@@ -1270,9 +1270,9 @@ class SQP_CostMatrices_NMPC:
             X_initial, U_horizon, self.state_space_parameters)
         Y_horizon = np.zeros((self.ny, self.Np + 1))
         for k in range(self.Np + 1):
-            Y_horizon[:, k] = self.calculate_measurement_function(
+            Y_horizon[:, k] = self.calculate_measurement_equation(
                 X_horizon[:, k], self.state_space_parameters).flatten()
-        yN = self.calculate_measurement_function(
+        yN = self.calculate_measurement_equation(
             X_horizon[:, self.Np], self.state_space_parameters)
 
         eN_y = yN - self.reference_trajectory[:, self.Np].reshape(-1, 1)
