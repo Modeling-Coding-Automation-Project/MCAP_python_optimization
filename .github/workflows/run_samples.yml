@@ -1,0 +1,57 @@
+name: Run samples
+
+on:
+  push:
+    branches:
+    - develop
+
+jobs:
+  run_samples:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        define:
+        - ''
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Install dependencies
+      run: 'sudo apt update
+
+        sudo apt install -y build-essential
+
+        sudo apt install -y python3.12
+
+        sudo apt install -y python3.12-dev
+
+        sudo apt install -y python3.12-venv
+
+        '
+    - name: Set up Python environment
+      run: 'python3.12 -m venv /opt/venv_py_optimization
+
+        /opt/venv_py_optimization/bin/pip install --upgrade pip
+
+        /opt/venv_py_optimization/bin/pip install --upgrade setuptools
+
+        /opt/venv_py_optimization/bin/pip install numpy sympy astor
+
+        '
+    - name: Run samples
+      run: '/opt/venv_py_optimization/bin/python3 ./sample/qp_active_set_demo_1.py
+
+        /opt/venv_py_optimization/bin/python3 ./sample/qp_active_set_demo_2.py
+
+        /opt/venv_py_optimization/bin/python3 ./sample/alm_pm_optimizer_demo.py
+
+        /opt/venv_py_optimization/bin/python3 ./sample/panoc_demo.py
+
+        /opt/venv_py_optimization/bin/python3 ./sample/sqp_2_mass_spring_damper_demo.py
+
+        /opt/venv_py_optimization/bin/python3 ./sample/sqp_pendulum_demo.py
+
+        '
