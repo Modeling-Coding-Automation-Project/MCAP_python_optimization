@@ -39,7 +39,7 @@ jobs:
 
         /opt/venv_py_optimization/bin/pip install --upgrade setuptools
 
-        /opt/venv_py_optimization/bin/pip install numpy sympy
+        /opt/venv_py_optimization/bin/pip install numpy sympy astor
 
         '
     - name: Run samples
