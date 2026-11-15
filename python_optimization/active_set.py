@@ -13,6 +13,9 @@ class ActiveSet:
     A class that manages an active set of constraints with a
     fixed number of constraints, ensuring safe management of the active set information.
 
+    push_active/push_inactive/is_active use original constraint numbers.
+    get_active/deactivate_at use positions in the ordered active set.
+
     Attributes
     ----------
     active_flags : np.ndarray of bool
@@ -42,6 +45,7 @@ class ActiveSet:
             - If the constraint at the given index is already active, this method does nothing.
             - Updates the internal flags and indices to reflect the activation.
         """
+        self._check_constraint_index(index)
         if not self._active_flags[index]:
             self._active_flags[index] = True
             self._active_indices[self._number_of_active] = index
@@ -56,17 +60,25 @@ class ActiveSet:
             - If the constraint at the given index is not active, this method does nothing.
             - Updates the internal flags and indices to reflect the deactivation.
         """
+        self._check_constraint_index(index)
         if self._active_flags[index]:
-            self._active_flags[index] = False
-            found = False
-            for i in range(self._number_of_active):
-                if not found and self._active_indices[i] == index:
-                    found = True
-                if found and i < self._number_of_active - 1:
-                    self._active_indices[i] = self._active_indices[i + 1]
-            if found:
-                self._active_indices[self._number_of_active - 1] = 0
-                self._number_of_active -= 1
+            for active_position in range(self._number_of_active):
+                if self._active_indices[active_position] == index:
+                    self.deactivate_at(active_position)
+                    return
+
+    def deactivate_at(self, active_position: int):
+        """Remove by active-set position, preserving the remaining order.
+
+        Unlike push_inactive(index), the argument is not a constraint number.
+        Raises IndexError for an invalid position, including an empty set.
+        """
+        constraint_index = self.get_active(active_position)
+        self._active_flags[constraint_index] = False
+        for position in range(active_position, self._number_of_active - 1):
+            self._active_indices[position] = self._active_indices[position + 1]
+        self._number_of_active -= 1
+        self._active_indices[self._number_of_active] = 0
 
     def get_active(self, index: int):
         """
@@ -106,7 +118,12 @@ class ActiveSet:
         Returns:
             bool: True if the constraint is active, False otherwise.
         """
+        self._check_constraint_index(index)
         return self._active_flags[index]
+
+    def _check_constraint_index(self, constraint_index: int):
+        if not 0 <= constraint_index < self.number_of_constraints:
+            raise IndexError("Constraint index out of bounds.")
 
 
 class ActiveSet2D:
@@ -172,18 +189,23 @@ class ActiveSet2D:
 
         self._check_bounds(col, row)
         if self._active_flags[col, row]:
-            self._active_flags[col, row] = False
+            for active_position in range(self._number_of_active):
+                if (self._active_pairs[active_position, 0] == col and
+                        self._active_pairs[active_position, 1] == row):
+                    self.deactivate_at(active_position)
+                    return
 
-            found = False
-            for i in range(self._number_of_active):
-                if not found and (self._active_pairs[i, 0] == col and self._active_pairs[i, 1] == row):
-                    found = True
-                if found and i < self._number_of_active - 1:
-                    self._active_pairs[i] = self._active_pairs[i + 1]
+    def deactivate_at(self, active_position: int):
+        """Remove the pair at an active-set position, preserving order.
 
-            if found:
-                self._active_pairs[self._number_of_active - 1] = (0, 0)
-                self._number_of_active -= 1
+        Raises IndexError for an invalid position, including an empty set.
+        """
+        col, row = self.get_active(active_position)
+        self._active_flags[col, row] = False
+        for position in range(active_position, self._number_of_active - 1):
+            self._active_pairs[position] = self._active_pairs[position + 1]
+        self._number_of_active -= 1
+        self._active_pairs[self._number_of_active] = (0, 0)
 
     def get_active(self, index: int):
         """
@@ -197,8 +219,8 @@ class ActiveSet2D:
 
         if index < 0 or index >= self._number_of_active:
             raise IndexError("Index out of bounds for active set.")
-        r, c = self._active_pairs[index]
-        return int(r), int(c)
+        col, row = self._active_pairs[index]
+        return int(col), int(row)
 
     def get_active_pairs(self):
         """

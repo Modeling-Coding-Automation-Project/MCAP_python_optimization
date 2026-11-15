@@ -289,19 +289,20 @@ class QP_ActiveSetSolver:
             # (2) All constraints are satisfied -> Check lambda
             if self.active_set.get_number_of_active() > 0:
                 # Find negative lambda among the active constraints
-                min_lambda_index = 0
+                min_lambda_position = 0
                 negative_lambda_found = False
                 min_lambda_value = 0.0
 
                 if lambda_candidate_exists:
-                    for index_local, lam in enumerate(lambda_candidate):
+                    for active_position in range(k):
+                        lam = lambda_candidate[active_position, 0]
                         if lam < -self.tol and lam < min_lambda_value:
                             min_lambda_value = lam
-                            min_lambda_index = index_local
+                            min_lambda_position = active_position
                             negative_lambda_found = True
 
                 if negative_lambda_found:
-                    self.active_set.push_inactive(min_lambda_index)
+                    self.active_set.deactivate_at(min_lambda_position)
                     # Since a constraint was removed, re-optimize
                     self.X = X_candidate
                     continue

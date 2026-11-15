@@ -46,6 +46,23 @@ x_opt = solver.solve(E, L, M, gamma)
 - 時間軸ごとの繰り返しがない
 - 最適解がただ一度計算されればよい
 
+### アクティブ集合の添字
+
+`push_active(index)` / `push_inactive(index)` / `is_active(index)` の引数は、
+元の制約番号です。`get_active(position)` / `deactivate_at(position)` の引数は、
+現在のアクティブ集合内の位置です。例えば集合が `[2, 3]` のとき、
+`deactivate_at(0)` は制約番号2を解除します。`push_inactive(0)` は制約番号0を指定します。
+
+`ActiveSet2D` でも位置からの解除には `deactivate_at(position)`、座標からの解除には
+`push_inactive(col, row)` を使います。どちらも残る要素の順序を維持します。
+空集合・範囲外の位置、無効な制約番号・座標は `IndexError` になります。
+
+回帰テストはリポジトリルートから次のコマンドで実行できます。
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
 ## 3-2. `SQP_ActiveSet_PCG_PLS` は制御問題で使う
 
 制御では、ただの QP ではなく、各時刻ごとに状態をシミュレートしながら、入力列全体を最適化していく必要があります。これが `SQP_ActiveSet_PCG_PLS` の出番です。

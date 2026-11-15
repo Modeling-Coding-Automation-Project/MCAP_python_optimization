@@ -41,6 +41,8 @@ jobs:
         /opt/venv_py_optimization/bin/pip install numpy sympy astor
 
         '
+    - name: Run active-set regression tests
+      run: /opt/venv_py_optimization/bin/python3 -m unittest discover -s tests -v
     - name: Run samples
       run: '/opt/venv_py_optimization/bin/python3 ./sample/qp_active_set_demo_1.py
 
